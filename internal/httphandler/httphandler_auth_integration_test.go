@@ -24,6 +24,7 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/caching"
 	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
+	"github.com/ppa/itprj-0007-sso/internal/pkg"
 	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
 	"github.com/ppa/itprj-0007-sso/internal/pkg/password"
 	"github.com/ppa/itprj-0007-sso/internal/repository"
@@ -43,6 +44,10 @@ type integration struct {
 	roles    *repository.PgRoleRepository
 	tokens   *repository.PgEmailTokenRepository
 	outbox   *repository.PgOutboxRepository
+	clients  *repository.PgClientRepository
+	keys     *repository.PgSigningKeyRepository
+	refresh  *repository.PgRefreshTokenRepository
+	ring     *pkg.Keyring
 }
 
 func newIntegration(t *testing.T) *integration {
@@ -82,6 +87,16 @@ func newIntegration(t *testing.T) *integration {
 		HTTP:           config.HTTPConfig{Addr: ":0", ExternalURL: "http://localhost:5173"},
 		AllowedOrigins: []string{"http://localhost:5173"},
 		Password:       config.PasswordConfig{MinLength: 12},
+		MasterKeys: config.MasterKeyConfig{
+			Keys:  map[string][]byte{"test-only": bytes.Repeat([]byte{7}, 32)},
+			KeyID: "test-only",
+		},
+	}
+	ring, err := pkg.NewKeyring(cfg.MasterKeys.Keys, cfg.MasterKeys.KeyID)
+	if err != nil {
+		db.Close()
+		_ = redisClient.Close()
+		t.Fatalf("build test keyring: %v", err)
 	}
 	realms := repository.NewRealmRepository(db.Pool)
 	users := repository.NewUserRepository(db.Pool)
@@ -91,21 +106,35 @@ func newIntegration(t *testing.T) *integration {
 	tokens := repository.NewEmailTokenRepository(db.Pool)
 	outbox := repository.NewOutboxRepository(db.Pool)
 	audit := repository.NewAuditRepository(db.Pool)
+	clients := repository.NewClientRepository(db.Pool)
+	keys := repository.NewSigningKeyRepository(db.Pool, ring)
+	authRequests := repository.NewAuthRequestRepository(redisClient)
+	authCodes := repository.NewAuthCodeRepository(redisClient)
+	refresh := repository.NewRefreshTokenRepository(db.Pool)
+	tokenState := repository.NewTokenStateRepository(redisClient)
 
 	router := NewRouter(Deps{
-		Config:      cfg,
-		DB:          db,
-		Redis:       redisClient,
-		Logger:      slog.New(slog.DiscardHandler),
-		Realms:      realms,
-		Users:       users,
-		Credentials: creds,
-		Sessions:    sessions,
-		Roles:       roles,
-		EmailTokens: tokens,
-		Audit:       audit,
-		CSRFStore:   repository.NewCSRFStore(redisClient),
-		RateLimit:   repository.NewRateLimitRepository(redisClient),
+		Config:        cfg,
+		DB:            db,
+		Redis:         redisClient,
+		Logger:        slog.New(slog.DiscardHandler),
+		Realms:        realms,
+		Users:         users,
+		Credentials:   creds,
+		Sessions:      sessions,
+		Roles:         roles,
+		EmailTokens:   tokens,
+		Audit:         audit,
+		CSRFStore:     repository.NewCSRFStore(redisClient),
+		RateLimit:     repository.NewRateLimitRepository(redisClient),
+		Clients:       clients,
+		SigningKeys:   keys,
+		Tokens:        keys,
+		AuthRequests:  authRequests,
+		AuthCodes:     authCodes,
+		RefreshTokens: refresh,
+		TokenState:    tokenState,
+		Outbox:        outbox,
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(func() {
@@ -117,6 +146,7 @@ func newIntegration(t *testing.T) *integration {
 		cfg: cfg, db: db, redis: redisClient, router: router,
 		server: server, realms: realms, users: users, creds: creds,
 		sessions: sessions, roles: roles, tokens: tokens, outbox: outbox,
+		clients: clients, keys: keys, refresh: refresh, ring: ring,
 	}
 }
 
@@ -676,7 +706,7 @@ func TestIntegrationOutboxSendsToMailHog(t *testing.T) {
 		Port: port,
 		From: "no-reply@example.com",
 	})
-	worker := workerhandler.NewOutboxWorker(it.outbox, sender, slog.New(slog.DiscardHandler))
+	worker := workerhandler.NewOutboxWorker(it.outbox, sender, it.keys, repository.NewLogoutSender(), slog.New(slog.DiscardHandler))
 	if sent, err := worker.ProcessOnce(context.Background()); err != nil || sent == 0 {
 		t.Fatalf("ProcessOnce() = %d, %v", sent, err)
 	}

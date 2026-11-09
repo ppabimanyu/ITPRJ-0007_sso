@@ -3,9 +3,13 @@
 # ITPRJ-0007_sso
 
 Self-hosted SSO service. M1 ships the Go backend, the operations foundation, and
-a Vue 3 SPA shell that proves the frontend stack against the live API. Login
-arrives in M2 and the admin console in M4, so this build exposes health,
-readiness, version, a home status page, and an `/admin` placeholder.
+a Vue 3 SPA shell that proves the frontend stack against the live API. M2 adds
+password login, sessions, invite, reset, and the email outbox. M3 adds the OIDC
+provider, so a relying party can run a PKCE authorization code flow, refresh
+tokens, read userinfo, and log out. The admin console arrives in M4.
+
+The SPA login and consent screens for the OIDC redirect are owned separately
+(M3-14). The backend flow is complete and testable with curl.
 
 ## Requirements
 
@@ -57,8 +61,11 @@ The generated dev-only client secret is printed once:
 printf '%s\n' 'Dev-Only-Passw0rd!' | go run ./cmd/migration seed --password-stdin
 ```
 
-Both commands converge on the same state when rerun. `rotate-key` and
-`rotate-master-key` exit non-zero until M3.
+Both commands converge on the same state when rerun. Rotate the realm signing
+key with `go run ./cmd/migration rotate-key`. The command creates a new active
+RSA-3072 key and retires the old one after 24 hours, so tokens signed before the
+rotation keep verifying inside that window. `rotate-master-key` remains
+reserved for a later milestone.
 
 ## Auth API (M2)
 
@@ -112,6 +119,98 @@ curl -s -b cookies.txt http://localhost:8080/api/v1/auth/session
 Password reset and verification links point at `EXTERNAL_URL`. The worker polls
 the outbox every second and delivers through `SMTP_HOST:SMTP_PORT` (MailHog at
 `http://localhost:8025` in Compose). `SMTP_TLS=true` requires STARTTLS.
+
+## OIDC provider (M3)
+
+The provider is mounted under `/realms/{realm}`. The seeded realm is `default`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/realms/{realm}/.well-known/openid-configuration` | Discovery document |
+| `GET` | `/realms/{realm}/jwks` | Public signing keys |
+| `GET` | `/realms/{realm}/authorize` | Authorization endpoint |
+| `POST` | `/realms/{realm}/token` | Authorization code, refresh, and client credentials |
+| `GET`/`POST` | `/realms/{realm}/userinfo` | User claims for a bearer access token |
+| `POST` | `/realms/{realm}/revoke` | RFC 7009 revocation |
+| `POST` | `/realms/{realm}/introspect` | RFC 7662 introspection |
+| `GET`/`POST` | `/realms/{realm}/logout` | RP-initiated logout |
+| `POST` | `/realms/{realm}/logout/backchannel` | Inbound signed logout token |
+
+Discovery is the source of truth for the issuer and endpoint URLs:
+
+```sh
+curl -s http://localhost:8080/realms/default/.well-known/openid-configuration | jq
+curl -s http://localhost:8080/realms/default/jwks | jq '.keys[] | {kid, kty, alg, use}'
+```
+
+### Relying party setup
+
+Register these values for each client. The admin API for this arrives in M4, so
+local fixtures come from `seed`.
+
+- A public client has `type=public`, no secret, and must send PKCE S256.
+- A confidential client has `type=confidential` and authenticates with
+  `client_secret_basic` or `client_secret_post`.
+- Grant types are `authorization_code`, `refresh_token`, and
+  `client_credentials`.
+- Allowed scopes are `openid`, `profile`, `email`, `offline_access`, `roles`,
+  and `groups`. `offline_access` is the only way to receive a refresh token.
+- Redirect URIs match exactly, including scheme, host, port, path, and query.
+  No wildcard or prefix match exists.
+- Post-logout redirect URIs are registered with the same exact-match rule.
+- CORS origins are registered per client for `/token`, `/userinfo`, `/revoke`,
+  and `/introspect`. Preflight requests are matched against the realm's
+  registered origins. An authenticated request is matched against the client's
+  own origins.
+
+The seeded clients are ready for local RP tests:
+
+| Client | Type | Redirect | CORS origin |
+|---|---|---|---|
+| `sample-spa` | public | `http://localhost:5173/callback` | `http://localhost:5173` |
+| `sample-backend` | confidential | `http://localhost:8080/callback` | `http://localhost:8080` |
+
+`sample-backend` prints its dev-only secret once during `seed`. Rerunning seed
+does not rotate it.
+
+### Authorization code flow
+
+1. The RP sends the browser to `/authorize` with `response_type=code`,
+   `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge`, and
+   `code_challenge_method=S256`.
+2. The provider stores the request in Redis for 10 minutes and sets an HttpOnly
+   `sso_authreq` cookie bound to the request. It redirects to
+   `/login?request_id=...`, or `/consent?request_id=...` for a third-party
+   client without a matching consent.
+3. The SPA calls `GET /api/v1/auth/authorize/request?request_id=...`, shows the
+   client and scopes, completes login, then calls
+   `POST /api/v1/auth/authorize/complete` with the session CSRF token. A
+   third-party flow calls `POST /api/v1/auth/consent` with the approved scopes.
+   Both return `{ "redirect_to": "..." }`.
+4. The browser follows `redirect_to` to the registered callback with `code` and
+   `state`.
+5. The RP exchanges the code at `/token` with the same `redirect_uri` and
+   `code_verifier`. Codes are single use and expire after 60 seconds.
+
+The complete browser flow needs the SPA screens. The integration test drives the
+same requests with a cookie jar and a fake RP.
+
+```sh
+# Discovery, as seen by an RP.
+curl -s http://localhost:8080/realms/default/.well-known/openid-configuration
+
+# Confidential client credentials, no refresh or ID token is returned.
+SECRET='the value printed by seed'
+curl -s -u "sample-backend:$SECRET" \
+  -H 'Origin: http://localhost:8080' \
+  -d 'grant_type=client_credentials&scope=openid%20profile' \
+  http://localhost:8080/realms/default/token
+```
+
+Access tokens are RS256 JWTs valid for 15 minutes. ID tokens are RS256 JWTs
+valid for 5 minutes. Refresh tokens are opaque, hashed at rest, rotate on every
+use, and revoke their whole family when an already-used token is presented.
+Introspection checks the session and user state, not only the signature.
 
 ## Run locally without containers
 
@@ -172,6 +271,10 @@ not tracked, so only `internal/webui/dist/.gitkeep` lives in the repository.
 | `GET /healthz` | Process liveness |
 | `GET /readyz` | Postgres, Redis, and migration version |
 | `GET /api/v1/version` | Build identity |
+| `GET /realms/{realm}/.well-known/openid-configuration` | OIDC discovery |
+| `GET /realms/{realm}/jwks` | OIDC signing keys |
+| `GET /realms/{realm}/authorize` | OIDC authorization |
+| `POST /realms/{realm}/token` | OIDC token endpoint |
 | `GET /` | SPA home, or the built-in not-built page |
 | `GET /admin` | SPA admin placeholder; the console lands in M4 |
 

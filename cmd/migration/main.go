@@ -3,10 +3,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -39,9 +36,9 @@ func run(args []string) error {
 	}
 	command := args[0]
 	switch command {
-	case "rotate-key", "rotate-master-key":
-		return fmt.Errorf("%s arrives with M3 key management; no changes were made", command)
-	case "up", "down", "seed", "bootstrap":
+	case "rotate-master-key":
+		return fmt.Errorf("%s remains out of scope for M3; no changes were made", command)
+	case "rotate-key", "up", "down", "seed", "bootstrap":
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", command)
@@ -78,6 +75,8 @@ func run(args []string) error {
 			return err
 		}
 		return seed(ctx, cfg, db, password)
+	case "rotate-key":
+		return rotateKey(ctx, cfg, db)
 	}
 	return nil
 }
@@ -91,8 +90,8 @@ commands:
   bootstrap --email <email> --password-stdin
                               ensure default realm, platform-admin role, admin user, signing key
   seed --password-stdin       ensure sample realm data, two clients, and a sample user
-  rotate-key                  reserved for M3
-  rotate-master-key           reserved for M3`)
+  rotate-key                  create a new active signing key and retire the old one after 24h
+  rotate-master-key           reserved for a later milestone`)
 }
 
 func migrateUp(ctx context.Context, db *database.DB) error {
@@ -217,13 +216,13 @@ func bootstrap(ctx context.Context, cfg *config.Config, db *database.DB, email, 
 		return fmt.Errorf("assign platform-admin: %w", err)
 	}
 
-	keys := repository.NewSigningKeyRepository(db.Pool)
+	keys := repository.NewSigningKeyRepository(db.Pool, ring)
 	active, err := keys.ListActive(ctx, realm.ID)
 	if err != nil {
 		return err
 	}
 	if len(active) == 0 {
-		key, err := generateSigningKey(ring, realm.ID)
+		key, err := repository.GenerateSigningKey(ring, realm.ID)
 		if err != nil {
 			return err
 		}
@@ -357,11 +356,13 @@ func seedConfidentialClient(ctx context.Context, realm *domain.Realm, clients *r
 	}
 	redirects := []domain.ClientRedirectURI{
 		{URI: "http://localhost:8080/callback", Kind: domain.RedirectKindAuthorize},
+		{URI: "http://localhost:8080/", Kind: domain.RedirectKindPostLogout},
 	}
+	origins := []domain.ClientCORSOrigin{{Origin: "http://localhost:8080"}}
 	if err := clients.Create(ctx, client, &domain.ClientSecret{
 		ClientID:   client.ID,
 		SecretHash: sha256Hex(secret),
-	}, redirects, nil); err != nil {
+	}, redirects, origins); err != nil {
 		return fmt.Errorf("create %s: %w", clientID, err)
 	}
 	fmt.Printf("seed: created confidential client %s\n", clientID)
@@ -425,31 +426,38 @@ func setPassword(ctx context.Context, credentials *repository.PgCredentialReposi
 	})
 }
 
-func generateSigningKey(ring *pkg.Keyring, realmID domain.RealmID) (*domain.RealmSigningKey, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 3072)
+func rotateKey(ctx context.Context, cfg *config.Config, db *database.DB) error {
+	ring, err := pkg.NewKeyring(cfg.MasterKeys.Keys, cfg.MasterKeys.KeyID)
 	if err != nil {
-		return nil, fmt.Errorf("generate rsa key: %w", err)
+		return fmt.Errorf("build master keyring: %w", err)
 	}
-	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	realms := repository.NewRealmRepository(db.Pool)
+	realm, err := realms.GetByName(ctx, domain.DefaultRealmName)
 	if err != nil {
-		return nil, fmt.Errorf("marshal private key: %w", err)
+		return fmt.Errorf("load default realm: %w", err)
 	}
-	encrypted, err := ring.Encrypt(der)
+	keys := repository.NewSigningKeyRepository(db.Pool, ring)
+	next, err := keys.RotateKey(ctx, realm.ID, 24*time.Hour)
 	if err != nil {
-		return nil, fmt.Errorf("encrypt private key: %w", err)
+		return fmt.Errorf("rotate signing key: %w", err)
 	}
-	kid, err := pkg.RandomToken(12)
+	audit := &domain.AuditEvent{
+		ID:        domain.AuditEventID(uuid.NewString()),
+		RealmID:   realm.ID,
+		ActorType: domain.ActorTypeSystem,
+		Type:      domain.AuditKeyRotated,
+		Metadata:  []byte(fmt.Sprintf(`{"kid":%q}`, next.KID)),
+	}
+	if err := repository.NewAuditRepository(db.Pool).Insert(ctx, audit); err != nil {
+		return fmt.Errorf("audit key rotation: %w", err)
+	}
+	published, err := keys.ListPublished(ctx, realm.ID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &domain.RealmSigningKey{
-		ID:                  domain.SigningKeyID(uuid.NewString()),
-		RealmID:             realmID,
-		KID:                 kid,
-		Algorithm:           "RS256",
-		PrivateKeyEncrypted: encrypted,
-		Active:              true,
-	}, nil
+	fmt.Printf("rotation: new kid=%s realm=%s published=%d retire_after=24h\n",
+		next.KID, realm.Name, len(published))
+	return nil
 }
 
 func sha256Hex(value string) string {

@@ -36,6 +36,7 @@ export default {
     login: {
       title: 'Sign in',
       description: 'Use your internal account to continue.',
+      requestDescription: 'Sign in to continue to {client}.',
       email: 'Email',
       password: 'Password',
       remember: 'Remember me',
@@ -47,6 +48,36 @@ export default {
         'Two-step sign-in is not available in this milestone. Contact an administrator.',
       noticeInvite: 'Your password is set. Sign in to continue.',
       noticeReset: 'Your password was reset. Sign in with the new password.',
+    },
+    authorize: {
+      clientLabel: 'Application',
+      scopesLabel: 'Requested access',
+      loading: 'Loading the sign-in request…',
+      signedIn: 'You are already signed in. Continue to finish this request.',
+      continue: 'Continue',
+      continuing: 'Continuing…',
+      completing: 'Completing sign-in…',
+      errorTitle: 'Sign-in request unavailable',
+      errorDescription: 'This application could not start a valid sign-in request.',
+      invalid:
+        'This sign-in request is incomplete. Start again from the application.',
+      expired:
+        'This sign-in request is invalid or has expired. Start again from the application.',
+      conflict:
+        'This sign-in request can no longer be completed. Start again from the application.',
+      sessionExpired: 'Your session expired before the request finished. Sign in again.',
+      home: 'Back to home',
+    },
+    consent: {
+      title: 'Grant access',
+      description: 'Review the access {client} is requesting before you continue.',
+      genericDescription: 'Review what this application is requesting before you continue.',
+      redirecting: 'Redirecting to sign in…',
+      scopesNote:
+        'Allowing access completes the sign-in request and returns you to the application.',
+      approve: 'Allow access',
+      approving: 'Allowing…',
+      cancel: 'Cancel',
     },
     forgot: {
       title: 'Forgot password',

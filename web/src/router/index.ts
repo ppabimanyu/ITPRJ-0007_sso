@@ -21,6 +21,12 @@ const router = createRouter({
       meta: { titleKey: 'auth.login.title' },
     },
     {
+      path: '/consent',
+      name: 'consent',
+      component: () => import('@/features/auth/ConsentView.vue'),
+      meta: { titleKey: 'auth.consent.title' },
+    },
+    {
       path: '/forgot-password',
       name: 'forgot-password',
       component: () => import('@/features/auth/ForgotPasswordView.vue'),

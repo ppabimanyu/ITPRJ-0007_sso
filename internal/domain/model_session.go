@@ -35,9 +35,11 @@ type SessionWithUser struct {
 type RefreshToken struct {
 	ID                string
 	SessionID         SessionID
+	ClientID          ClientID
 	TokenHash         string
 	FamilyID          string
 	ParentID          *string
+	Scope             string
 	ExpiresAt         time.Time
 	AbsoluteExpiresAt time.Time
 	UsedAt            *time.Time

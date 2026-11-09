@@ -18,6 +18,7 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
 	"github.com/ppa/itprj-0007-sso/internal/infra/logger"
+	"github.com/ppa/itprj-0007-sso/internal/pkg"
 	"github.com/ppa/itprj-0007-sso/internal/repository"
 	"github.com/ppa/itprj-0007-sso/internal/workerhandler"
 )
@@ -57,6 +58,11 @@ func run() error {
 	}
 	defer func() { _ = redisClient.Close() }()
 
+	ring, err := pkg.NewKeyring(cfg.MasterKeys.Keys, cfg.MasterKeys.KeyID)
+	if err != nil {
+		return fmt.Errorf("build master keyring: %w", err)
+	}
+
 	users := repository.NewUserRepository(db.Pool)
 	credentials := repository.NewCredentialRepository(db.Pool)
 	sessions := repository.NewSessionRepository(db.Pool)
@@ -65,6 +71,12 @@ func run() error {
 	audit := repository.NewAuditRepository(db.Pool)
 	outbox := repository.NewOutboxRepository(db.Pool)
 	realms := repository.NewRealmRepository(db.Pool)
+	clients := repository.NewClientRepository(db.Pool)
+	signingKeys := repository.NewSigningKeyRepository(db.Pool, ring)
+	authRequests := repository.NewAuthRequestRepository(redisClient)
+	authCodes := repository.NewAuthCodeRepository(redisClient)
+	refreshTokens := repository.NewRefreshTokenRepository(db.Pool)
+	tokenState := repository.NewTokenStateRepository(redisClient)
 	csrfStore := repository.NewCSRFStore(redisClient)
 	rateLimit := repository.NewRateLimitRepository(redisClient)
 
@@ -76,23 +88,32 @@ func run() error {
 		Password: cfg.SMTP.Password,
 		TLS:      cfg.SMTP.TLS,
 	})
-	worker := workerhandler.NewOutboxWorker(outbox, mailer, log)
+	worker := workerhandler.NewOutboxWorker(outbox, mailer, signingKeys,
+		repository.NewLogoutSender(), log)
 	go worker.Run(ctx)
 
 	handler := httphandler.NewRouter(httphandler.Deps{
-		Config:      cfg,
-		DB:          db,
-		Redis:       redisClient,
-		Logger:      log,
-		Realms:      realms,
-		Users:       users,
-		Credentials: credentials,
-		Sessions:    sessions,
-		Roles:       roles,
-		EmailTokens: emailTokens,
-		Audit:       audit,
-		CSRFStore:   csrfStore,
-		RateLimit:   rateLimit,
+		Config:        cfg,
+		DB:            db,
+		Redis:         redisClient,
+		Logger:        log,
+		Realms:        realms,
+		Users:         users,
+		Credentials:   credentials,
+		Sessions:      sessions,
+		Roles:         roles,
+		EmailTokens:   emailTokens,
+		Audit:         audit,
+		CSRFStore:     csrfStore,
+		RateLimit:     rateLimit,
+		Clients:       clients,
+		SigningKeys:   signingKeys,
+		Tokens:        signingKeys,
+		AuthRequests:  authRequests,
+		AuthCodes:     authCodes,
+		RefreshTokens: refreshTokens,
+		TokenState:    tokenState,
+		Outbox:        outbox,
 		Version: domain.VersionInfo{
 			Version:   version,
 			Commit:    commit,
