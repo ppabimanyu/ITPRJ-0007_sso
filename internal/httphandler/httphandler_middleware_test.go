@@ -30,6 +30,13 @@ func (f *fakeSessions) GetByTokenHash(context.Context, string) (*domain.SessionW
 	return f.current, nil
 }
 
+func (f *fakeSessions) GetByID(context.Context, domain.SessionID) (*domain.SessionWithUser, error) {
+	if f.current == nil {
+		return nil, domain.ErrNotFound
+	}
+	return f.current, nil
+}
+
 func (f *fakeSessions) TouchLastSeen(context.Context, domain.SessionID, time.Time, time.Time) error {
 	return nil
 }
@@ -39,6 +46,10 @@ func (f *fakeSessions) ListByUser(context.Context, domain.UserID) ([]domain.Sess
 }
 
 func (f *fakeSessions) RevokeForUser(context.Context, domain.SessionID, domain.UserID, *domain.AuditEvent) (bool, error) {
+	return true, nil
+}
+
+func (f *fakeSessions) RevokeByID(context.Context, domain.SessionID, *domain.AuditEvent) (bool, error) {
 	return true, nil
 }
 
