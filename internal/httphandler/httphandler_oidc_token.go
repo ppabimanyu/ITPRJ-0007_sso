@@ -257,7 +257,7 @@ func (h *handlers) exchangeRefresh(w http.ResponseWriter, r *http.Request, realm
 		scope = requested
 	}
 	access, idToken, expiresIn, err := h.signUserTokens(r.Context(), realm, client, session, scope,
-		session.Session.AuthTime, session.Session.AMR, sessionACR(session.Session.AMR), "")
+		session.Session.AuthTime, session.Session.AMR, effectiveSessionACR(session.Session), "")
 	if err != nil {
 		h.logInternal(r.Context(), "token_sign_failed", err)
 		writeTokenError(w, http.StatusInternalServerError, domain.OAuthServerError, "token issuance failed")

@@ -14,7 +14,8 @@ import (
 
 const sessionColumns = `s.id::text, s.realm_id::text, s.user_id::text,
 	coalesce(s.token_hash, ''), coalesce(s.csrf_hash, ''),
-	coalesce(host(s.ip), ''), s.user_agent, s.amr, s.auth_time, s.last_seen_at,
+	coalesce(host(s.ip), ''), s.user_agent, s.amr, coalesce(s.acr, ''),
+	s.auth_time, s.last_seen_at,
 	s.remember_me, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.created_at`
 
 // PgSessionRepository stores login sessions and their token digests.
@@ -35,13 +36,13 @@ func (r *PgSessionRepository) CreateLoginSession(ctx context.Context, session *d
 	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO session (id, realm_id, user_id, token_hash, csrf_hash, ip,
-				user_agent, amr, auth_time, last_seen_at, remember_me,
+				user_agent, amr, acr, auth_time, last_seen_at, remember_me,
 				idle_expires_at, absolute_expires_at)
 			VALUES ($1::text::uuid, $2::text::uuid, $3::text::uuid, $4, $5,
-				NULLIF($6, '')::inet, $7, $8, $9, $10, $11, $12, $13)`,
+				NULLIF($6, '')::inet, $7, $8, $9, $10, $11, $12, $13, $14)`,
 			string(session.ID), string(session.RealmID), string(session.UserID),
 			session.TokenHash, session.CSRFTokenHash, session.IP, session.UserAgent,
-			session.AMR, session.AuthTime, session.LastSeenAt, session.RememberMe,
+			session.AMR, session.ACR, session.AuthTime, session.LastSeenAt, session.RememberMe,
 			session.IdleExpiresAt, session.AbsoluteExpiresAt)
 		if err != nil {
 			return mapError(err)
@@ -84,7 +85,7 @@ func (r *PgSessionRepository) getSessionWithUser(ctx context.Context, where stri
 		&result.Session.ID, &result.Session.RealmID, &result.Session.UserID,
 		&result.Session.TokenHash, &result.Session.CSRFTokenHash,
 		&result.Session.IP, &result.Session.UserAgent, &result.Session.AMR,
-		&result.Session.AuthTime, &result.Session.LastSeenAt,
+		&result.Session.ACR, &result.Session.AuthTime, &result.Session.LastSeenAt,
 		&result.Session.RememberMe, &result.Session.IdleExpiresAt,
 		&result.Session.AbsoluteExpiresAt, &result.Session.RevokedAt,
 		&result.Session.CreatedAt,
@@ -235,7 +236,7 @@ func scanSession(row rowScanner) (*domain.Session, error) {
 	err := row.Scan(
 		&session.ID, &session.RealmID, &session.UserID, &session.TokenHash,
 		&session.CSRFTokenHash, &session.IP, &session.UserAgent, &session.AMR,
-		&session.AuthTime, &session.LastSeenAt, &session.RememberMe,
+		&session.ACR, &session.AuthTime, &session.LastSeenAt, &session.RememberMe,
 		&session.IdleExpiresAt, &session.AbsoluteExpiresAt, &session.RevokedAt,
 		&session.CreatedAt,
 	)

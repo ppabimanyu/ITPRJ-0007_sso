@@ -13,6 +13,7 @@ type Session struct {
 	IP                string
 	UserAgent         string
 	AMR               []string
+	ACR               string
 	AuthTime          time.Time
 	LastSeenAt        time.Time
 	RememberMe        bool

@@ -16,6 +16,7 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
 	"github.com/ppa/itprj-0007-sso/internal/infra/tracing"
+	"github.com/ppa/itprj-0007-sso/internal/pkg"
 	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
 	"github.com/ppa/itprj-0007-sso/internal/webui"
 )
@@ -36,6 +37,10 @@ type Deps struct {
 	Audit       domain.AuditRepository
 	CSRFStore   csrf.Store
 	RateLimit   domain.RateLimitRepository
+
+	MFA           domain.MFARepository
+	MFAChallenges domain.MFAChallengeRepository
+	Keyring       *pkg.Keyring
 
 	Clients       domain.ClientRepository
 	SigningKeys   domain.SigningKeyRepository
@@ -83,7 +88,7 @@ func NewRouter(deps Deps) http.Handler {
 				pre.Post("/auth/reset-password", h.resetPassword)
 				pre.Post("/auth/verify-email", h.verifyEmail)
 				pre.Post("/auth/accept-invite", h.acceptInvite)
-				pre.Post("/auth/mfa/verify", h.notImplemented)
+				pre.Post("/auth/mfa/verify", h.verifyMFA)
 			})
 
 			auth.Group(func(session chi.Router) {
@@ -92,20 +97,21 @@ func NewRouter(deps Deps) http.Handler {
 				session.With(sessionCSRF).Post("/auth/logout", h.logout)
 				session.With(sessionCSRF).Post("/auth/authorize/complete", h.completeAuthorize)
 				session.With(sessionCSRF).Post("/auth/consent", h.grantConsent)
-				session.With(sessionCSRF).Post("/auth/mfa/enroll", h.notImplemented)
+				session.With(sessionCSRF).Post("/auth/mfa/enroll", h.enrollMFA)
 			})
 		})
 
 		r.Group(func(me chi.Router) {
 			me.Use(SessionAuth(deps))
+			me.Use(MFASatisfied(deps))
 			me.Get("/me", h.getMe)
 			me.With(sessionCSRF).Patch("/me", h.updateMe)
 			me.With(sessionCSRF).Post("/me/password", h.changePassword)
 			me.Get("/me/sessions", h.listMySessions)
 			me.With(sessionCSRF).Delete("/me/sessions/{id}", h.revokeMySession)
-			me.With(sessionCSRF).Post("/me/mfa/totp", h.notImplemented)
-			me.With(sessionCSRF).Delete("/me/mfa/totp", h.notImplemented)
-			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.notImplemented)
+			me.With(sessionCSRF).Post("/me/mfa/totp", h.enrollMFA)
+			me.With(sessionCSRF).Delete("/me/mfa/totp", h.deleteMyTOTP)
+			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.regenerateRecoveryCodes)
 		})
 	})
 

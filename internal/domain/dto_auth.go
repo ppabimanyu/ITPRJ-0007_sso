@@ -69,6 +69,41 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password"`
 }
 
+// MFAVerifyRequest finishes a login challenge with a TOTP or recovery code.
+type MFAVerifyRequest struct {
+	MFAToken     string `json:"mfa_token"`
+	Code         string `json:"code,omitempty"`
+	RecoveryCode string `json:"recovery_code,omitempty"`
+}
+
+// MFAVerifyResponse is the authenticated session created after MFA.
+type MFAVerifyResponse struct {
+	Status           string    `json:"status"`
+	SessionExpiresAt time.Time `json:"session_expires_at"`
+	User             UserDTO   `json:"user"`
+	RedirectTo       *string   `json:"redirect_to,omitempty"`
+}
+
+// MFAEnrollRequest starts or confirms TOTP enrollment.
+type MFAEnrollRequest struct {
+	Action string `json:"action"`
+	Code   string `json:"code,omitempty"`
+}
+
+// MFAEnrollResponse returns the secret once at start and recovery codes once
+// at confirm. Neither value is stored in plaintext.
+type MFAEnrollResponse struct {
+	Action        string   `json:"action"`
+	Secret        *string  `json:"secret"`
+	OTPAuthURI    *string  `json:"otpauth_uri"`
+	RecoveryCodes []string `json:"recovery_codes"`
+}
+
+// RecoveryCodeResponse is the one-time recovery code regeneration body.
+type RecoveryCodeResponse struct {
+	RecoveryCodes []string `json:"recovery_codes"`
+}
+
 // ProfileUpdateRequest is the PATCH /api/v1/me body.
 type ProfileUpdateRequest struct {
 	Name       *string `json:"name,omitempty"`

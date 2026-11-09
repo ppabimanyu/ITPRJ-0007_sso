@@ -79,6 +79,8 @@ func run() error {
 	tokenState := repository.NewTokenStateRepository(redisClient)
 	csrfStore := repository.NewCSRFStore(redisClient)
 	rateLimit := repository.NewRateLimitRepository(redisClient)
+	mfa := repository.NewMFARepository(db.Pool)
+	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
 
 	mailer := repository.NewSMTPSender(repository.SMTPSenderConfig{
 		Host:     cfg.SMTP.Host,
@@ -106,6 +108,9 @@ func run() error {
 		Audit:         audit,
 		CSRFStore:     csrfStore,
 		RateLimit:     rateLimit,
+		MFA:           mfa,
+		MFAChallenges: mfaChallenges,
+		Keyring:       ring,
 		Clients:       clients,
 		SigningKeys:   signingKeys,
 		Tokens:        signingKeys,

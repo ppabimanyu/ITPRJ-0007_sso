@@ -19,7 +19,18 @@ func (h *handlers) getMe(w http.ResponseWriter, r *http.Request) {
 			"session is missing or expired")
 		return
 	}
-	writeJSON(w, http.StatusOK, userDTO(current.User, current.Roles, current.MFAEnrolled))
+	var groups []domain.Group
+	if h.deps.Roles != nil {
+		var err error
+		groups, err = h.deps.Roles.ListGroupsByUser(r.Context(), current.User.RealmID, current.User.ID)
+		if err != nil {
+			h.logInternal(r.Context(), "group_lookup_failed", err)
+			WriteProblem(w, r, http.StatusInternalServerError, domain.CodeInternal,
+				"the server could not complete the request")
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, userDTOWithGroups(current.User, current.Roles, groups, current.MFAEnrolled))
 }
 
 func (h *handlers) updateMe(w http.ResponseWriter, r *http.Request) {

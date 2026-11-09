@@ -39,9 +39,17 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) bool {
 }
 
 func userDTO(user *domain.User, roles []domain.Role, mfaEnrolled bool) domain.UserDTO {
+	return userDTOWithGroups(user, roles, nil, mfaEnrolled)
+}
+
+func userDTOWithGroups(user *domain.User, roles []domain.Role, groups []domain.Group, mfaEnrolled bool) domain.UserDTO {
 	roleRefs := make([]domain.RoleRef, 0, len(roles))
 	for _, role := range roles {
 		roleRefs = append(roleRefs, domain.RoleRef{ID: string(role.ID), Name: role.Name})
+	}
+	groupRefs := make([]domain.GroupRef, 0, len(groups))
+	for _, group := range groups {
+		groupRefs = append(groupRefs, domain.GroupRef{ID: string(group.ID), Name: group.Name})
 	}
 	return domain.UserDTO{
 		ID:              string(user.ID),
@@ -55,7 +63,7 @@ func userDTO(user *domain.User, roles []domain.Role, mfaEnrolled bool) domain.Us
 		DisabledAt:      user.DisabledAt,
 		MFAEnrolled:     mfaEnrolled,
 		Roles:           roleRefs,
-		Groups:          []domain.GroupRef{},
+		Groups:          groupRefs,
 		CreatedAt:       user.CreatedAt,
 		UpdatedAt:       user.UpdatedAt,
 	}

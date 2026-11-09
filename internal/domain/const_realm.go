@@ -61,6 +61,22 @@ const (
 	AuditEmailVerified     = "auth.email.verified"
 	AuditSessionRevoked    = "auth.session.revoked"
 	AuditPasswordRequested = "auth.password.reset_requested"
+
+	AuditMFAChallengeCreated = "auth.mfa.challenge"
+	AuditMFAEnrolled         = "auth.mfa.enrolled"
+	AuditMFADisabled         = "auth.mfa.disabled"
+	AuditMFAVerified         = "auth.mfa.verified"
+	AuditMFAFailed           = "auth.mfa.failed"
+	AuditMFARecoveryUsed     = "auth.mfa.recovery_used"
+	AuditMFARecoveryCreated  = "auth.mfa.recovery_created"
+
+	AuditAdminAccessDenied    = "admin.access.denied"
+	AuditAdminUserCreated     = "admin.user.created"
+	AuditAdminUserUpdated     = "admin.user.updated"
+	AuditAdminUserDisabled    = "admin.user.disabled"
+	AuditAdminUserInvited     = "admin.user.invited"
+	AuditAdminUserRoles       = "admin.user.roles_changed"
+	AuditAdminPasswordRequest = "admin.user.password_reset_requested"
 )
 
 // Outbox event types written in M2.

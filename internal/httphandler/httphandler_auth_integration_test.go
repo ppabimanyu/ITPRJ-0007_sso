@@ -47,6 +47,7 @@ type integration struct {
 	clients  *repository.PgClientRepository
 	keys     *repository.PgSigningKeyRepository
 	refresh  *repository.PgRefreshTokenRepository
+	mfa      *repository.PgMFARepository
 	ring     *pkg.Keyring
 }
 
@@ -112,6 +113,8 @@ func newIntegration(t *testing.T) *integration {
 	authCodes := repository.NewAuthCodeRepository(redisClient)
 	refresh := repository.NewRefreshTokenRepository(db.Pool)
 	tokenState := repository.NewTokenStateRepository(redisClient)
+	mfa := repository.NewMFARepository(db.Pool)
+	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
 
 	router := NewRouter(Deps{
 		Config:        cfg,
@@ -127,6 +130,9 @@ func newIntegration(t *testing.T) *integration {
 		Audit:         audit,
 		CSRFStore:     repository.NewCSRFStore(redisClient),
 		RateLimit:     repository.NewRateLimitRepository(redisClient),
+		MFA:           mfa,
+		MFAChallenges: mfaChallenges,
+		Keyring:       ring,
 		Clients:       clients,
 		SigningKeys:   keys,
 		Tokens:        keys,
@@ -146,7 +152,7 @@ func newIntegration(t *testing.T) *integration {
 		cfg: cfg, db: db, redis: redisClient, router: router,
 		server: server, realms: realms, users: users, creds: creds,
 		sessions: sessions, roles: roles, tokens: tokens, outbox: outbox,
-		clients: clients, keys: keys, refresh: refresh, ring: ring,
+		clients: clients, keys: keys, refresh: refresh, mfa: mfa, ring: ring,
 	}
 }
 

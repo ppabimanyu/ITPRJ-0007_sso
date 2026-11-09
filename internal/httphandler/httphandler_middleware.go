@@ -54,6 +54,71 @@ func isAdmin(roles []domain.Role) bool {
 	return false
 }
 
+func adminMFAReady(current *CurrentSession) bool {
+	return current != nil && current.Session != nil &&
+		current.MFAEnrolled &&
+		current.Session.ACR == domain.ACRMFA
+}
+
+// MFASatisfied blocks an admin whose session is still password-only from
+// reaching self-service routes. Non-admin sessions pass through unchanged.
+func MFASatisfied(deps Deps) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			current := SessionFromContext(r.Context())
+			if current == nil {
+				WriteProblem(w, r, http.StatusUnauthorized, domain.CodeSessionExpired,
+					"session is missing or expired")
+				return
+			}
+			if isAdmin(current.Roles) && !adminMFAReady(current) {
+				denyAdminAccess(w, r, deps, current, "mfa_enrollment_required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// AdminOnly enforces the platform-admin role and a completed MFA session.
+func AdminOnly(deps Deps) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			current := SessionFromContext(r.Context())
+			if current == nil {
+				WriteProblem(w, r, http.StatusUnauthorized, domain.CodeSessionExpired,
+					"session is missing or expired")
+				return
+			}
+			if !isAdmin(current.Roles) {
+				denyAdminAccess(w, r, deps, current, "role_required")
+				return
+			}
+			if !adminMFAReady(current) {
+				denyAdminAccess(w, r, deps, current, "mfa_required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func denyAdminAccess(w http.ResponseWriter, r *http.Request, deps Deps, current *CurrentSession, reason string) {
+	if deps.Audit != nil {
+		audit := auditEvent(current.User.RealmID, domain.ActorTypeUser,
+			userActor(current.User.ID), domain.AuditAdminAccessDenied,
+			map[string]any{"route": r.URL.Path, "reason": reason})
+		if err := deps.Audit.Insert(r.Context(), audit); err != nil {
+			logger.FromContext(r.Context()).Warn("audit_insert_failed", "error", err)
+		}
+	}
+	code := domain.CodeForbidden
+	if reason == "mfa_required" || reason == "mfa_enrollment_required" {
+		code = domain.CodeMFARequired
+	}
+	WriteProblem(w, r, http.StatusForbidden, code, "administrator access requires a completed MFA session")
+}
+
 // RequestID propagates or creates X-Request-ID and puts it in the request
 // context before any logger runs.
 func RequestID(next http.Handler) http.Handler {

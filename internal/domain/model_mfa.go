@@ -20,3 +20,14 @@ type MFARecoveryCode struct {
 	UsedAt    *time.Time
 	CreatedAt time.Time
 }
+
+// MFAChallenge is the short-lived state between a password login and a
+// completed TOTP challenge. It lives in Redis, never in the session table.
+type MFAChallenge struct {
+	UserID     UserID
+	RealmID    RealmID
+	RequestID  string
+	Attempts   int
+	RememberMe bool
+	ExpiresAt  time.Time
+}

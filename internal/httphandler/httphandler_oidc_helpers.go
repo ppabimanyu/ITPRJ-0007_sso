@@ -164,6 +164,18 @@ func sessionACR(amr []string) string {
 	return domain.ACRPassword
 }
 
+// effectiveSessionACR trusts the stored value and falls back to AMR for rows
+// created before the acr column existed.
+func effectiveSessionACR(session *domain.Session) string {
+	if session == nil {
+		return domain.ACRPassword
+	}
+	if session.ACR != "" {
+		return session.ACR
+	}
+	return sessionACR(session.AMR)
+}
+
 func consentCovers(consent *domain.Consent, scopes []string) bool {
 	if consent == nil {
 		return false
