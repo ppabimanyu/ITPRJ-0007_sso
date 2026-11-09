@@ -6,7 +6,7 @@
 | Pemilik | Tim Platform |
 | Tanggal | 9 November 2026 |
 | Target rilis | v1 dalam 8 minggu (solo) |
-| Dokumen terkait | `api/openapi.yaml`, `docs/ARCHITECTURE.md`, `docs/RUNBOOK.md` |
+| Dokumen terkait | `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `api/openapi.yaml`, `docs/RUNBOOK.md` |
 
 ### Riwayat Revisi
 
@@ -506,6 +506,8 @@ Struktur frontend: `web/src/{routes,features/{auth,admin,account},components/ui,
 | M6 Rilis | 8 | Conformance, e2e, load test, runbook, deploy produksi | Kriteria penerimaan §13 terpenuhi | Semua |
 
 P1 boleh digeser ke v1.1 tanpa memengaruhi kriteria penerimaan: FR-ADM-06 (import CSV), FR-ADM-07 (key viewer), FR-AUD-04 (export audit), FR-USR-11, FR-AUT-11, FR-OID-13, FR-CLI-04, FR-KEY-03; semuanya dikerjakan di M5 bila waktu memungkinkan. P2 (FR-RLM-06, FR-USR-08/12, FR-AUT-12, FR-OID-14) tidak dipetakan ke milestone. Risiko jadwal terbesar di M3; yang boleh digeser adalah P1, bukan kualitas protokol.
+
+Rincian task, estimasi jam, dependency, dan buffer ada di `docs/IMPLEMENTATION_PLAN.md`. Ringkasnya: 228 jam kerja dengan asumsi 30 jam/minggu; pada 25 jam/minggu durasi realistis 9–10 minggu.
 
 ## 15. Risiko & Mitigasi
 
