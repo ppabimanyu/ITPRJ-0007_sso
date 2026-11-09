@@ -1,3 +1,5 @@
+import { isRecord, readString } from './json'
+
 export interface VersionInfo {
   version: string
   commit: string
@@ -14,15 +16,6 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? ''
 
 function endpointFor(path: string) {
   return `${apiBaseUrl}${path}`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function readString(record: Record<string, unknown>, key: string) {
-  const value = record[key]
-  return typeof value === 'string' ? value : ''
 }
 
 function parseVersion(value: unknown): VersionInfo {
