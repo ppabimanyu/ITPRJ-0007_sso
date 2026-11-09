@@ -228,6 +228,7 @@ export default {
     },
     mfa: {
       title: 'Verifikasi dua langkah',
+      tabLabel: 'MFA',
       description: 'Lindungi akun Anda dengan aplikasi autentikator.',
       enabled: 'Aktif',
       disabled: 'Nonaktif',
@@ -368,6 +369,8 @@ export default {
         sessions: 'Sesi',
         created: 'Dibuat',
       },
+      mfaEnrolledHint: 'Masuk dengan aplikasi autentikator.',
+      mfaNotEnrolledHint: 'Belum ada aplikasi autentikator tertaut.',
       create: {
         action: 'Buat user',
         title: 'Buat user',
@@ -445,6 +448,7 @@ export default {
         status: 'Status',
         redirects: 'Redirect URI',
         created: 'Dibuat',
+        copyId: 'Salin client ID',
       },
       create: {
         action: 'Buat client',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQuery } from '@tanstack/vue-query'
 
@@ -7,6 +7,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 import { listClients } from '@/lib/admin/api'
@@ -29,6 +31,8 @@ const secretOpen = ref(false)
 const secretValue = ref('')
 const secretClientName = ref('')
 const createdNotice = ref('')
+const copiedClientId = ref('')
+let copyTimer: ReturnType<typeof setTimeout> | undefined
 
 const params = computed(() => ({
   after: pager.after.value ?? undefined,
@@ -53,6 +57,27 @@ function onCreated(client: AdminClientWithSecret) {
   createdNotice.value = client.name
   pager.reset()
 }
+
+async function copyClientId(clientId: string) {
+  try {
+    await navigator.clipboard.writeText(clientId)
+    copiedClientId.value = clientId
+    if (copyTimer !== undefined) {
+      clearTimeout(copyTimer)
+    }
+    copyTimer = setTimeout(() => {
+      copiedClientId.value = ''
+    }, 2000)
+  } catch {
+    copiedClientId.value = ''
+  }
+}
+
+onBeforeUnmount(() => {
+  if (copyTimer !== undefined) {
+    clearTimeout(copyTimer)
+  }
+})
 </script>
 
 <template>
@@ -82,12 +107,16 @@ function onCreated(client: AdminClientWithSecret) {
 
     <AdminProblem :error="error" />
 
-    <p
+    <div
       v-if="isPending"
-      class="text-sm text-muted-foreground"
+      class="space-y-2 rounded-xl border p-4"
+      aria-busy="true"
     >
-      {{ t('common.loading') }}
-    </p>
+      <Skeleton class="h-5 w-1/3" />
+      <Skeleton class="h-10 w-full" />
+      <Skeleton class="h-10 w-full" />
+      <Skeleton class="h-10 w-full" />
+    </div>
 
     <p
       v-else-if="clients.length === 0"
@@ -141,15 +170,26 @@ function onCreated(client: AdminClientWithSecret) {
                 {{ formatDate(client.createdAt) }}
               </TableCell>
               <TableCell class="text-right">
-                <Button
-                  as-child
-                  variant="outline"
-                  size="sm"
-                >
-                  <RouterLink :to="{ name: 'admin-client', params: { id: client.id } }">
-                    {{ t('admin.common.open') }}
-                  </RouterLink>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                    >
+                      {{ t('admin.common.actions') }}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem as-child>
+                      <RouterLink :to="{ name: 'admin-client', params: { id: client.id } }">
+                        {{ t('admin.common.open') }}
+                      </RouterLink>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem @select="copyClientId(client.clientId)">
+                      {{ copiedClientId === client.clientId ? t('admin.common.copied') : t('admin.clients.table.copyId') }}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </TableCell>
             </TableRow>
           </TableBody>

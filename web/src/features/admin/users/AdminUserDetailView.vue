@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -58,7 +59,19 @@ const form = reactive({ name: '', locale: 'en' as 'en' | 'id' })
 function setLocale(value: unknown) {
   form.locale = value === 'id' ? 'id' : 'en'
 }
+
 const selectedRoles = ref<string[]>([])
+
+function toggleRole(roleId: string, checked: boolean | 'indeterminate') {
+  if (checked) {
+    if (!selectedRoles.value.includes(roleId)) {
+      selectedRoles.value = [...selectedRoles.value, roleId]
+    }
+    return
+  }
+  selectedRoles.value = selectedRoles.value.filter((id) => id !== roleId)
+}
+
 const savedProfile = ref(false)
 const savedRoles = ref(false)
 const resetSent = ref(false)
@@ -295,13 +308,12 @@ async function resendInvite() {
                 :key="role.id"
                 class="flex items-start gap-3 rounded-md border px-3 py-2"
               >
-                <input
+                <Checkbox
                   :id="`admin-role-${role.id}`"
-                  v-model="selectedRoles"
-                  type="checkbox"
-                  :value="role.id"
-                  class="mt-1 h-4 w-4 rounded border-input"
-                >
+                  :model-value="selectedRoles.includes(role.id)"
+                  class="mt-1"
+                  @update:model-value="(checked) => toggleRole(role.id, checked)"
+                />
                 <label
                   :for="`admin-role-${role.id}`"
                   class="flex-1 space-y-0.5"

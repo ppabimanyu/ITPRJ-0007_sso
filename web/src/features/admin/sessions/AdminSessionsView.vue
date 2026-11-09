@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 import { listAdminSessions, listUsers } from '@/lib/admin/api'
@@ -172,12 +173,16 @@ async function revoke() {
 
     <AdminProblem :error="error" />
 
-    <p
+    <div
       v-if="isPending"
-      class="text-sm text-muted-foreground"
+      class="space-y-2 rounded-xl border p-4"
+      aria-busy="true"
     >
-      {{ t('common.loading') }}
-    </p>
+      <Skeleton class="h-5 w-1/3" />
+      <Skeleton class="h-10 w-full" />
+      <Skeleton class="h-10 w-full" />
+      <Skeleton class="h-10 w-full" />
+    </div>
 
     <p
       v-else-if="sessions.length === 0"
