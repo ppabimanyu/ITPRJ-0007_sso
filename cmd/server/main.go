@@ -18,6 +18,8 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
 	"github.com/ppa/itprj-0007-sso/internal/infra/logger"
+	"github.com/ppa/itprj-0007-sso/internal/repository"
+	"github.com/ppa/itprj-0007-sso/internal/workerhandler"
 )
 
 var (
@@ -55,11 +57,42 @@ func run() error {
 	}
 	defer func() { _ = redisClient.Close() }()
 
+	users := repository.NewUserRepository(db.Pool)
+	credentials := repository.NewCredentialRepository(db.Pool)
+	sessions := repository.NewSessionRepository(db.Pool)
+	roles := repository.NewRoleRepository(db.Pool)
+	emailTokens := repository.NewEmailTokenRepository(db.Pool)
+	audit := repository.NewAuditRepository(db.Pool)
+	outbox := repository.NewOutboxRepository(db.Pool)
+	realms := repository.NewRealmRepository(db.Pool)
+	csrfStore := repository.NewCSRFStore(redisClient)
+	rateLimit := repository.NewRateLimitRepository(redisClient)
+
+	mailer := repository.NewSMTPSender(repository.SMTPSenderConfig{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		From:     cfg.SMTP.From,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		TLS:      cfg.SMTP.TLS,
+	})
+	worker := workerhandler.NewOutboxWorker(outbox, mailer, log)
+	go worker.Run(ctx)
+
 	handler := httphandler.NewRouter(httphandler.Deps{
-		Config: cfg,
-		DB:     db,
-		Redis:  redisClient,
-		Logger: log,
+		Config:      cfg,
+		DB:          db,
+		Redis:       redisClient,
+		Logger:      log,
+		Realms:      realms,
+		Users:       users,
+		Credentials: credentials,
+		Sessions:    sessions,
+		Roles:       roles,
+		EmailTokens: emailTokens,
+		Audit:       audit,
+		CSRFStore:   csrfStore,
+		RateLimit:   rateLimit,
 		Version: domain.VersionInfo{
 			Version:   version,
 			Commit:    commit,
