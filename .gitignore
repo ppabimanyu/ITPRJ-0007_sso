@@ -10,6 +10,9 @@ bin/
 # Web build output; only the placeholder in internal/webui/dist is tracked
 web/node_modules/
 web/dist/
+web/e2e/.auth/
+web/test-results/
+web/playwright-report/
 internal/webui/dist/*
 !internal/webui/dist/.gitkeep
 

@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: dev build test lint migrate seed bootstrap web-build clean
+.PHONY: dev build test lint e2e migrate seed bootstrap web-build clean
 
 # Rebuild images, apply migrations, and start the whole local stack.
 dev:
@@ -17,6 +17,10 @@ test:
 
 lint:
 	golangci-lint run
+
+# Playwright smoke: starts its own isolated stack on :8080.
+e2e:
+	cd web && npm run e2e
 
 # Runs against DATABASE_URL from the shell or .env.
 migrate:
