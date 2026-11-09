@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ppa/itprj-0007-sso/internal/domain"
@@ -18,13 +21,31 @@ func NewAuditRepository(pool *pgxpool.Pool) *PgAuditRepository {
 }
 
 func (r *PgAuditRepository) Insert(ctx context.Context, event *domain.AuditEvent) error {
-	err := r.pool.QueryRow(ctx, `
-		INSERT INTO audit_event (id, realm_id, actor_type, actor_id, type, metadata)
-		VALUES ($1::text::uuid, $2::text::uuid, $3, $4, $5, $6::jsonb)
-		RETURNING created_at`,
+	return insertAudit(ctx, r.pool, event)
+}
+
+// insertAuditTx writes the event inside a business transaction so the evidence
+// and the state change commit together.
+func insertAuditTx(ctx context.Context, tx pgx.Tx, event *domain.AuditEvent) error {
+	if event == nil {
+		return nil
+	}
+	return insertAudit(ctx, tx, event)
+}
+
+type execQuerier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+func insertAudit(ctx context.Context, q execQuerier, event *domain.AuditEvent) error {
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	_, err := q.Exec(ctx, `
+		INSERT INTO audit_event (id, realm_id, actor_type, actor_id, type, metadata, created_at)
+		VALUES ($1::text::uuid, $2::text::uuid, $3, $4, $5, $6::jsonb, $7)`,
 		string(event.ID), string(event.RealmID), event.ActorType,
-		nullString(event.ActorID), event.Type, jsonValue(event.Metadata),
-	).Scan(&event.CreatedAt)
+		nullString(event.ActorID), event.Type, jsonValue(event.Metadata), event.CreatedAt)
 	return mapError(err)
 }
 

@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+// OutboxStatus is the lifecycle of a transactional outbox row.
+type OutboxStatus string
+
+const (
+	OutboxStatusPending    OutboxStatus = "pending"
+	OutboxStatusProcessing OutboxStatus = "processing"
+	OutboxStatusSent       OutboxStatus = "sent"
+	OutboxStatusFailed     OutboxStatus = "failed"
+)
+
 // AuditEvent is append-only business evidence. It never stores secrets.
 type AuditEvent struct {
 	ID        AuditEventID
@@ -22,10 +32,11 @@ type OutboxEvent struct {
 	RealmID       RealmID
 	Type          string
 	Payload       json.RawMessage
-	Status        string
+	Status        OutboxStatus
 	Attempts      int
 	NextAttemptAt time.Time
 	LastError     *string
+	LockedUntil   *time.Time
 	CreatedAt     time.Time
 	ProcessedAt   *time.Time
 }
