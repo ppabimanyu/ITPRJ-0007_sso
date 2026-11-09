@@ -2,15 +2,24 @@
 
 | | |
 |---|---|
-| Status | Draft v1.0 |
+| Status | Draft v1.1 (revisi UI platform) |
 | Tanggal | 9 November 2026 |
 | Acuan | `docs/PRD.md` v1.1, `docs/ARCHITECTURE.md` v1.0, `api/openapi.yaml` |
-| Target | 8 minggu, solo |
-| Kapasitas asumsi | 30 jam/minggu (240 jam) |
-| Total estimasi kerja | 228 jam |
+| Target | 8,6 minggu, solo |
+| Kapasitas asumsi | 30 jam/minggu (259 jam) |
+| Total estimasi kerja | 247 jam |
 | Buffer | 12 jam (±5%) |
 
 > **Catatan kapasitas:** angka 8 minggu hanya berlaku pada ~30 jam/minggu. Jika kapasitas riil 25 jam/minggu, durasi realistis menjadi 9–10 minggu dengan urutan tugas yang sama. Buffer 12 jam sengaja tipis; kegagalan conformance yang besar akan menggeser rilis satu minggu.
+
+> **Revisi v1.1 (9 November 2026):** M1–M4 sudah selesai dan merge ke `main` (PR #1–#4, 180 jam termasuk Fase 0). Revisi ini menambah **M4.5 — UI Platform (19 jam)** sebelum M5: Playwright smoke lebih dulu, lalu upgrade Tailwind 4 dan regenerasi komponen dengan `shadcn-vue`. Sisa pekerjaan menjadi 67 jam terhadap 60 jam kapasitas yang tersisa, sehingga rilis bergeser ±7 jam (≈1 hari kerja). Total rencana menjadi 247 jam.
+
+### Riwayat revisi
+
+| Versi | Tanggal | Perubahan |
+|---|---|---|
+| v1.0 | 9 November 2026 | Rencana awal 8 minggu (228 jam). |
+| v1.1 | 9 November 2026 | M1–M4 selesai. Tambah M4.5 UI Platform: Playwright smoke, Tailwind 4, shadcn-vue. Total 247 jam. |
 
 ---
 
@@ -18,6 +27,8 @@
 
 - **Vertical slice per milestone.** Setiap milestone berakhir dengan sesuatu yang bisa didemokan, bukan kumpulan modul setengah jadi.
 - **Backend dulu, UI menyusul per milestone.** UI tidak menunggu seluruh API selesai; halaman login/consent masuk saat endpoint auth stabil.
+- **UI kanonik.** Semua primitive UI memakai `shadcn-vue` di atas Tailwind 4; `web/src/components/ui` hanya berisi output CLI. Wrapper aplikasi (mis. `AdminPager`) tetap tipis dan dibangun dari komponen kanonik.
+- **Test sebelum refactor UI.** Playwright smoke (M4.5-01) wajib hijau sebelum migrasi Tailwind 4/shadcn-vue; refactor tidak boleh mengubah perilaku.
 - **P0 only.** Semua P1 (import CSV, key viewer, export audit, dll.) tidak dijadwalkan. P1 hanya dikerjakan bila buffer tersisa.
 - **Trunk-based.** Branch pendek per task, PR kecil, CI wajib hijau.
 - **Keamanan diuji negatif.** Setiap fitur auth wajib punya test untuk kasus gagal (PKCE salah, code reuse, CSRF, lockout, reuse refresh token).
@@ -26,7 +37,7 @@
 ### Definition of Done (berlaku semua task)
 
 1. Kode + test (unit/integration sesuai jenis task) ada dan lulus.
-2. `go vet`, `golangci-lint`, `govulncheck`, build frontend lulus.
+2. `go vet`, `golangci-lint`, `govulncheck`, build frontend (typecheck/lint/build), dan Playwright smoke (mulai M4.5) lulus.
 3. Tidak ada secret/token/email di log atau error message.
 4. Dokumentasi yang terdampak (`ARCHITECTURE`, `openapi.yaml`, runbook) diperbarui.
 5. PR direview (self-review checklist) dan di-merge ke trunk.
@@ -51,6 +62,23 @@ Tanggal indikatif bila mulai Senin, 9 November 2026.
 
 **Risiko kalender:** minggu 7–8 jatuh pada libur akhir tahun. Jika kapasitas turun, pakai buffer atau geser rilis satu minggu; jangan memotong conformance.
 
+### 2.1 Status per 9 November 2026
+
+Timeline di atas adalah baseline. Per 9 November 2026, M1–M4 sudah merge; sisa pekerjaan mengikuti urutan baru berikut.
+
+| Fase | Jam | Status | Catatan |
+|---|---:|---|---|
+| Fase 0 | 2 | ✅ | — |
+| M1 Fondasi | 48 | ✅ | PR #1 |
+| M2 Auth core | 38 | ✅ | PR #2 |
+| M3 OIDC | 52 | ✅ | PR #3 |
+| M4 Admin & MFA | 40 | ✅ | PR #4 |
+| **M4.5 UI Platform** | **19** | ⬜ | Playwright smoke → Tailwind 4 → shadcn-vue |
+| M5 Hardening | 28 | ⬜ | M5-07 memperluas suite Playwright |
+| M6 Rilis | 20 | ⬜ | Conformance dan regresi dijalankan ulang setelah refactor UI |
+
+Sisa pekerjaan: 67 jam (M4.5 19 + M5 28 + M6 20). Kapasitas tersisa 60 jam (240 − 180), sehingga rilis bergeser ±7 jam ≈ 1 hari kerja. Buffer 12 jam tetap dialokasikan untuk temuan conformance.
+
 ### Alokasi jam per milestone
 
 | Milestone | Jam | Window |
@@ -60,9 +88,10 @@ Tanggal indikatif bila mulai Senin, 9 November 2026.
 | M2 Auth core | 38 | Minggu 2–4 |
 | M3 OIDC | 52 | Minggu 4–5 |
 | M4 Admin & MFA | 40 | Minggu 6–7 |
+| M4.5 UI Platform | 19 | Minggu 7 |
 | M5 Hardening | 28 | Minggu 7–8 |
-| M6 Rilis | 20 | Minggu 8 |
-| **Total** | **228** | |
+| M6 Rilis | 20 | Minggu 8–9 |
+| **Total** | **247** | |
 
 ---
 
@@ -145,6 +174,32 @@ Tanggal indikatif bila mulai Senin, 9 November 2026.
 
 **Exit M4:** admin bisa mengelola user/client/role/group/session/settings; admin wajib MFA; last-admin terlindungi; self-service lengkap.
 
+### M4.5 — UI Platform (19 jam)
+
+Tujuan: UI memakai **shadcn-vue kanonik di atas Tailwind 4**, dengan Playwright smoke sebagai jaring pengaman sebelum refactor. Tidak ada perubahan perilaku produk di milestone ini.
+
+| ID | Tugas | Jam | Depends | Output/DoD |
+|---|---|---:|---|---|
+| M4.5-01 | Playwright: config, fixture login (password + MFA), job CI; smoke login, MFA, consent, admin user CRUD, client create | 4 | M4, stack Compose | Suite hijau di lokal + CI; screenshot saat gagal |
+| M4.5-02 | Upgrade Tailwind 3 → 4: plugin `@tailwindcss/vite`, `@import "tailwindcss"`, token ke `@theme inline`, hapus `tailwind.config.js`/`postcss.config.js`, `tw-animate-css` | 3 | M4.5-01 | Build lulus; seluruh halaman tampil sama; tidak ada utility class hilang |
+| M4.5-03 | `shadcn-vue@2.9` pada `components.json` (style v2, `data-slot`, `lucide-vue-next`), regenerasi 11 primitive | 2 | M4.5-02 | `components/ui` 100% output CLI; `iconLibrary` konsisten |
+| M4.5-04 | Pertahankan delta aplikasi: variant `success` pada Alert, `Input.focus()` untuk kode OTP/MFA, token warna dan locale | 1 | M4.5-03 | Semua pemakaian lama typecheck; tidak ada regresi visual |
+| M4.5-05 | Migrasi `DialogPanel` → `Dialog*`; `AdminConfirmDialog` → `AlertDialog`; 6 call site | 2 | M4.5-03 | `DialogPanel.vue` dihapus; dialog komposabel; focus trap dan Esc teruji |
+| M4.5-06 | Migrasi Select native → `Select*` (5 form admin + language switch + profil); sentinel untuk opsi "semua" | 2 | M4.5-03 | Tidak ada `<select>` mentah; keyboard nav dan placeholder benar |
+| M4.5-07 | Adopsi komponen kanonik pada layar nyata: `DropdownMenu` (aksi baris tabel), `Tabs`, `Tooltip`, `Separator`, `Skeleton`, `Checkbox` | 3 | M4.5-05/06 | Setiap komponen dipakai minimal di satu layar; tidak ada komponen mati |
+| M4.5-08 | Verifikasi: typecheck, lint, build, `go build`, Playwright smoke, browser pass semua halaman (desktop + mobile 380px) | 2 | M4.5-01..07 | Gate M4.5 hijau; screenshot before/after dilampirkan di PR |
+
+**Catatan implementasi M4.5**
+
+- CLI: `shadcn-vue@2.9.0` (jalur Tailwind 4). Komponen yang dipasang: `alert`, `alert-dialog`, `badge`, `button`, `card`, `checkbox`, `dialog`, `dropdown-menu`, `input`, `label`, `select`, `separator`, `skeleton`, `switch`, `table`, `tabs`, `textarea`, `tooltip`. Komponen yang belum dipakai tidak dipasang.
+- Tailwind 4: `src/styles/index.css` memakai `@import "tailwindcss"`, `@theme inline`, dan `tw-animate-css`. Token warna lama dipertahankan (dipetakan ke `@theme inline`) agar tampilan tidak berubah.
+- `components.json` disesuaikan ke format v2 (`tailwind.config` kosong, `iconLibrary: lucide`); `lucide-vue-next` ditambahkan dan dipakai komponen kanonik.
+- Dialog: `DialogPanel` dihapus; konfirmasi destruktif memakai `AlertDialog`; dialog form memakai `Dialog` + `DialogHeader`/`DialogFooter`.
+- Select: `SelectItem` tidak boleh bernilai `""`; opsi "semua" memakai sentinel `all` lalu di-map ke string kosong. `Input` tetap mengekspos `focus()` untuk auto-focus kode OTP/MFA.
+- Pengecualian yang dipertahankan: `AdminPager` tetap wrapper aplikasi karena paginasi API berbasis cursor, bukan nomor halaman. `AdminConfirmDialog`, `AdminSecretDialog`, dan `AdminProblem` tetap wrapper tipis di atas komponen kanonik.
+
+**Exit M4.5:** Tailwind 4 aktif, `components/ui` seluruhnya hasil `shadcn-vue`, tidak ada primitive custom, Playwright smoke hijau, dan seluruh alur M2–M4 tetap berjalan.
+
 ### M5 — Hardening (28 jam)
 
 | ID | Tugas | Jam | Depends | Output/DoD |
@@ -155,7 +210,7 @@ Tanggal indikatif bila mulai Senin, 9 November 2026.
 | M5-04 | Degradasi Redis: fallback sesi, fail-closed auth, test | 3 | M2-02 | Sesi lama valid; login baru 503 terkontrol |
 | M5-05 | Rotasi signing key + master key + test tanpa downtime | 4 | M3-02 | Token lama tetap valid; secret terbaca |
 | M5-06 | Load test k6 (login, token) + tuning Argon2 | 4 | M2, M3 | p95 sesuai target atau bottleneck terdokumentasi |
-| M5-07 | E2E Playwright: login, MFA, consent, reset, admin CRUD | 3 | M4 | Semua alur kritis hijau |
+| M5-07 | Perluas Playwright dari M4.5-01: reset password, enrollment MFA, admin roles/groups/sessions/settings, kasus negatif | 3 | M4.5-01 | Semua alur kritis hijau |
 | M5-08 | Cleanup worker: sesi/token/outbox gagal | 2 | M2-04 | Job idempoten; metrik backlog |
 
 **Exit M5:** seluruh gate keamanan hijau, degradasi Redis terbukti, load test terdokumentasi, audit lengkap.
@@ -186,19 +241,23 @@ P0-01
                           └─ M3-01/02 → M3-03 → M3-04 → M3-05 → M3-06
                                 └─ M3-07/08 → M3-09/10/11 → M3-12
                                       └─ M4-01 → M4-02/03/04/05 → M4-06/07/08
-                                            └─ M5-01..08
-                                                  └─ M6-01..06
+                                            └─ M4.5-01 → M4.5-02 → M4.5-03 → M4.5-04/05/06 → M4.5-07 → M4.5-08
+                                                  └─ M5-01..08
+                                                        └─ M6-01..06
 ```
 
-Critical path: **skema + sesi + authorize/token + MFA admin + conformance**. Frontend bukan critical path, tetapi M4-06/07/08 dan M3-12 bergantung pada API yang sudah stabil; jangan menunda UI sampai M6.
+Critical path: **skema + sesi + authorize/token + MFA admin + UI platform + conformance**. Frontend bukan critical path fitur, tetapi M4.5 menjadi gate sebelum M5 dan M3-12/M4-06/07/08 bergantung pada API yang sudah stabil; jangan menunda UI sampai M6.
 
 ### Dependensi lintas milestone yang mudah terlewat
 
 - M3-12 (login SPA ↔ authorize) butuh M2-07 dan M3-05.
 - M4-02 (forced MFA) butuh session middleware M2-02 dan TOTP M4-01.
 - M4-05 settings butuh enkripsi SMTP dari M1-08 dan master key M3-02.
+- M4.5-01 (Playwright smoke) harus selesai sebelum semua perubahan UI; suite yang sama dipakai sebagai gate di setiap commit M4.5.
+- M4.5-05/06 mengubah markup yang diuji smoke; jalankan suite setelah tiap commit, bukan hanya di akhir.
 - M5-05 rotasi key butuh M3-02 dan skema key M1-08.
-- M6-01 conformance butuh discovery, prompt/max_age, logout, dan refresh dari M3.
+- M5-07 memperluas suite M4.5-01, bukan membuat suite baru.
+- M6-01 conformance butuh discovery, prompt/max_age, logout, dan refresh dari M3; jalankan setelah M4.5 stabil.
 
 ---
 
@@ -210,6 +269,7 @@ Critical path: **skema + sesi + authorize/token + MFA admin + conformance**. Fro
 | M2 | Integration auth, email outbox | Login + invite + reset via MailHog |
 | M3 | Integration OIDC, RP e2e | Code flow + refresh + logout dengan RP nyata |
 | M4 | Admin API + MFA test | CRUD admin, forced MFA, last-admin |
+| M4.5 | Playwright smoke, typecheck/lint/build, `go build` | Browser pass semua halaman desktop + mobile; keyboard nav dan focus trap |
 | M5 | Security test, Redis-down, load test | Checklist keamanan ARCHITECTURE §10 |
 | M6 | Conformance, e2e penuh | Backup/restore drill + sign-off PRD §13 |
 
@@ -224,6 +284,11 @@ Critical path: **skema + sesi + authorize/token + MFA admin + conformance**. Fro
 | Libur akhir tahun | Minggu 7–8 kapasitas turun | Mulai lebih awal atau geser 1 minggu; buffer bukan untuk fitur |
 | Argon2 tidak mencapai p95 | M5-06 gagal target | Turunkan parameter ke 32 MiB atau batasi konkurensi; catat trade-off |
 | UI admin melebar | M4-06/07 melewati 11 jam | Fokus layar users + clients; roles/groups read-only di v1.0 |
+| Upgrade Tailwind 4 mengubah token/utility | Halaman bergeser atau ada class hilang | Playwright smoke + screenshot baseline; commit Tailwind terpisah dari perubahan markup |
+| API `shadcn-vue` 2.9 berbeda dari 1.x (`data-slot`, style baru) | Typecheck/lint gagal massal | Timebox 1 hari; fallback `shadcn-vue@1.0.3` + Tailwind 3 dengan revert M4.5-02 |
+| `reka-ui` Select menolak `value=""` | Filter "semua" rusak | Sentinel `all` yang di-map ke string kosong |
+| `Input.focus()` hilang setelah regenerasi | Auto-focus kode OTP/MFA rusak | Pertahankan `defineExpose` di wrapper Input |
+| Bundle naik karena `lucide-vue-next` | First load melambat | Import tree-shaken; cek ukuran bundle di gate M4.5 |
 | Redis mati saat uji | M5-04 gagal | Perbaiki fallback; jangan rilis sebelum matriks degradasi hijau |
 
 **Aturan re-scope:** task P0 tidak boleh dihapus tanpa revisi PRD. P1 boleh dipotong kapan saja. Jika satu task melewati estimasi >4 jam, hentikan dan pecah ulang atau pangkas output.
@@ -244,6 +309,7 @@ P1 hanya dikerjakan jika buffer >10 jam dan milestone berikutnya belum dimulai.
 | P1-06 | TTL token per client (FR-OID-13) | 2 | TTL global |
 | P1-07 | Riwayat rotasi secret (FR-CLI-04) | 2 | Hanya metadata saat ini |
 | P1-08 | Interface KeyStore untuk KMS (FR-KEY-03) | 2 | Refactor saat pindah KMS |
+| P1-09 | Toast feedback (Sonner) di seluruh mutasi admin | 2 | Feedback masih inline `<Alert>` |
 
 P2 (realm CRUD, email change, role inheritance via group, device code, WebAuthn, SAML, Kafka) tidak masuk backlog 8 minggu.
 
@@ -266,4 +332,5 @@ Setelah hari ke-3, jalankan demo internal: `make dev` menyalakan Postgres/Redis,
 - Plan direview setiap akhir minggu; selisih estimasi dicatat.
 - Perubahan scope hanya lewat revisi `docs/PRD.md`; task baru harus punya ID dan estimasi.
 - Jika timeline bergeser >3 hari, perbarui tabel §2 dan kabari pemilik produk.
-- Dokumentasi yang wajib ikut berubah saat implementasi: `api/openapi.yaml` (kontrak), `ARCHITECTURE` (keputusan teknis), `RUNBOOK` (operasional).
+- Revisi v1.1 menyesuaikan §2, §3 (M4.5), §4, §5, §6, dan §7. Keputusan Tailwind 4 + shadcn-vue dicatat di `ARCHITECTURE` (bagian frontend) dan `README`.
+- Dokumentasi yang wajib ikut berubah saat implementasi: `api/openapi.yaml` (kontrak), `ARCHITECTURE` (keputusan teknis), `README` (stack UI dan cara menjalankan), `RUNBOOK` (operasional).
