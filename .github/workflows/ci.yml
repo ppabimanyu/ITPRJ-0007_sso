@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feat/m1-foundation]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Build SPA
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Embed SPA
+        run: |
+          rm -rf internal/webui/dist
+          mkdir -p internal/webui/dist
+          cp -R web/dist/. internal/webui/dist/
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.15.0
+
+      - name: Vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...

@@ -1,0 +1,84 @@
+# DEV ONLY values. Do not use this file for a public deployment.
+name: sso
+
+x-app-env: &app-env
+  APP_ENV: dev
+  HTTP_ADDR: ":8080"
+  EXTERNAL_URL: ${EXTERNAL_URL:-http://localhost:8080}
+  DATABASE_URL: postgres://sso:dev-only-postgres@postgres:5432/sso?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  SSO_MASTER_KEYS: '{"dev-only":"FglevJnTk5aiM1Gmb5Epn2V6wQ1e5ZvxYHUNMBGp/sA="}'
+  SSO_MASTER_KEY_ID: dev-only
+  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
+  METRICS_ADDR: ":9090"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sso
+      POSTGRES_PASSWORD: dev-only-postgres
+      POSTGRES_DB: sso
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sso -d sso"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  migrate:
+    build: .
+    entrypoint: ["/migration"]
+    command: ["up"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["migrate"]
+    restart: "no"
+
+  app:
+    build: .
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "${CADDY_PORT:-8088}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
