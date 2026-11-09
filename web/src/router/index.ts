@@ -64,9 +64,76 @@ const router = createRouter({
     },
     {
       path: '/admin',
-      name: 'admin',
       component: () => import('@/features/admin/AdminView.vue'),
       meta: { titleKey: 'admin.title', requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: () => import('@/features/admin/dashboard/AdminDashboardView.vue'),
+          meta: { titleKey: 'admin.title', requiresAdmin: true },
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('@/features/admin/users/AdminUsersView.vue'),
+          meta: { titleKey: 'admin.users.title', requiresAdmin: true },
+        },
+        {
+          path: 'users/:id',
+          name: 'admin-user',
+          component: () => import('@/features/admin/users/AdminUserDetailView.vue'),
+          meta: { titleKey: 'admin.users.detailTitle', requiresAdmin: true },
+        },
+        {
+          path: 'clients',
+          name: 'admin-clients',
+          component: () => import('@/features/admin/clients/AdminClientsView.vue'),
+          meta: { titleKey: 'admin.clients.title', requiresAdmin: true },
+        },
+        {
+          path: 'clients/:id',
+          name: 'admin-client',
+          component: () => import('@/features/admin/clients/AdminClientDetailView.vue'),
+          meta: { titleKey: 'admin.clients.detailTitle', requiresAdmin: true },
+        },
+        {
+          path: 'roles',
+          name: 'admin-roles',
+          component: () => import('@/features/admin/roles/AdminRolesView.vue'),
+          meta: { titleKey: 'admin.roles.title', requiresAdmin: true },
+        },
+        {
+          path: 'groups',
+          name: 'admin-groups',
+          component: () => import('@/features/admin/groups/AdminGroupsView.vue'),
+          meta: { titleKey: 'admin.groups.title', requiresAdmin: true },
+        },
+        {
+          path: 'groups/:id',
+          name: 'admin-group',
+          component: () => import('@/features/admin/groups/AdminGroupDetailView.vue'),
+          meta: { titleKey: 'admin.groups.detailTitle', requiresAdmin: true },
+        },
+        {
+          path: 'sessions',
+          name: 'admin-sessions',
+          component: () => import('@/features/admin/sessions/AdminSessionsView.vue'),
+          meta: { titleKey: 'admin.sessions.title', requiresAdmin: true },
+        },
+        {
+          path: 'audit',
+          name: 'admin-audit',
+          component: () => import('@/features/admin/audit/AdminAuditView.vue'),
+          meta: { titleKey: 'admin.audit.title', requiresAdmin: true },
+        },
+        {
+          path: 'settings',
+          name: 'admin-settings',
+          component: () => import('@/features/admin/settings/AdminSettingsView.vue'),
+          meta: { titleKey: 'admin.settings.title', requiresAdmin: true },
+        },
+      ],
     },
     {
       path: '/:pathMatch(.*)*',
