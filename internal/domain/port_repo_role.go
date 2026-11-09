@@ -9,4 +9,5 @@ type RoleRepository interface {
 	ListByRealm(ctx context.Context, realmID RealmID) ([]Role, error)
 	AssignToUser(ctx context.Context, realmID RealmID, userID UserID, roleID RoleID) error
 	ListByUser(ctx context.Context, realmID RealmID, userID UserID) ([]Role, error)
+	ListGroupsByUser(ctx context.Context, realmID RealmID, userID UserID) ([]Group, error)
 }

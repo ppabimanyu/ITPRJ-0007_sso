@@ -91,3 +91,26 @@ func (r *PgRoleRepository) ListByUser(ctx context.Context, realmID domain.RealmI
 	}
 	return roles, mapError(rows.Err())
 }
+
+func (r *PgRoleRepository) ListGroupsByUser(ctx context.Context, realmID domain.RealmID, userID domain.UserID) ([]domain.Group, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT g.id::text, g.realm_id::text, g.name, g.description, g.created_at
+		FROM "group" g
+		JOIN user_group ug ON ug.group_id = g.id
+		WHERE ug.realm_id = $1::text::uuid AND ug.user_id = $2::text::uuid
+		ORDER BY g.name`, string(realmID), string(userID))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	defer rows.Close()
+
+	var groups []domain.Group
+	for rows.Next() {
+		var group domain.Group
+		if err := rows.Scan(&group.ID, &group.RealmID, &group.Name, &group.Description, &group.CreatedAt); err != nil {
+			return nil, mapError(err)
+		}
+		groups = append(groups, group)
+	}
+	return groups, mapError(rows.Err())
+}

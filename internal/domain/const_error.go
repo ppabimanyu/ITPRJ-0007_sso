@@ -4,8 +4,11 @@ import "errors"
 
 // Repository errors are mapped by handlers to problem+json codes.
 var (
-	ErrNotFound = errors.New("not found")
-	ErrConflict = errors.New("conflict")
+	ErrNotFound       = errors.New("not found")
+	ErrConflict       = errors.New("conflict")
+	ErrRefreshReused  = errors.New("refresh token reused")
+	ErrRefreshExpired = errors.New("refresh token expired")
+	ErrTokenInvalid   = errors.New("token invalid")
 )
 
 // Public error codes from ARCHITECTURE §9.

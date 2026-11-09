@@ -58,6 +58,14 @@ func (r *PgSessionRepository) CreateLoginSession(ctx context.Context, session *d
 }
 
 func (r *PgSessionRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionWithUser, error) {
+	return r.getSessionWithUser(ctx, "s.token_hash = $1", tokenHash)
+}
+
+func (r *PgSessionRepository) GetByID(ctx context.Context, id domain.SessionID) (*domain.SessionWithUser, error) {
+	return r.getSessionWithUser(ctx, "s.id = $1::text::uuid", string(id))
+}
+
+func (r *PgSessionRepository) getSessionWithUser(ctx context.Context, where string, args ...any) (*domain.SessionWithUser, error) {
 	row := r.pool.QueryRow(ctx, `
 		SELECT `+sessionColumns+`,
 			u.id::text, u.realm_id::text, u.email, u.username, u.name, u.given_name,
@@ -69,7 +77,7 @@ func (r *PgSessionRepository) GetByTokenHash(ctx context.Context, tokenHash stri
 			)
 		FROM session s
 		JOIN "user" u ON u.id = s.user_id
-		WHERE s.token_hash = $1`, tokenHash)
+		WHERE `+where, args...)
 
 	result := &domain.SessionWithUser{Session: &domain.Session{}, User: &domain.User{}}
 	err := row.Scan(
@@ -235,4 +243,32 @@ func scanSession(row rowScanner) (*domain.Session, error) {
 		return nil, mapError(err)
 	}
 	return &session, nil
+}
+
+// RevokeByID is the RP-initiated logout primitive. It revokes the session and
+// its refresh tokens, and records the audit event in the same transaction.
+func (r *PgSessionRepository) RevokeByID(ctx context.Context, id domain.SessionID, audit *domain.AuditEvent) (bool, error) {
+	revoked := false
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		var found domain.SessionID
+		err := tx.QueryRow(ctx, `
+			UPDATE session SET revoked_at = now()
+			WHERE id = $1::text::uuid AND revoked_at IS NULL
+			RETURNING id::text`, string(id)).Scan(&found)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return mapError(err)
+		}
+		revoked = true
+		if _, err := tx.Exec(ctx, `
+			UPDATE refresh_token SET revoked_at = now()
+			WHERE session_id = $1::text::uuid AND revoked_at IS NULL`,
+			string(id)); err != nil {
+			return mapError(err)
+		}
+		return insertAuditTx(ctx, tx, audit)
+	})
+	return revoked, err
 }
