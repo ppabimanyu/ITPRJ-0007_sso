@@ -1,0 +1,1916 @@
+openapi: 3.1.0
+info:
+  title: SSO Service API
+  version: 1.0.0
+  description: |
+    Kontrak REST untuk sesi/autentikasi, self-service, dan admin console SSO Service.
+    Endpoint OIDC (`/realms/{realm}/authorize`, `/token`, `/userinfo`, `/jwks`,
+    `/logout`, `/introspect`, `/revoke`, discovery) mengikuti spesifikasi OpenID
+    Connect/OAuth2 dan didokumentasikan di `docs/ARCHITECTURE.md`, bukan di sini.
+
+    Semua error non-OIDC memakai `application/problem+json` (RFC 9457) dengan
+    field tambahan `code`. Endpoint ber-cookie memakai CSRF double-submit
+    (`X-CSRF-Token` harus sama dengan cookie `sso_csrf`). Endpoint pra-sesi
+    tetap mewajibkan `X-CSRF-Token` dan validasi Origin/Referer.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://sso.example.com
+    description: Produksi
+  - url: http://localhost:8080
+    description: Development
+tags:
+  - name: Auth
+    description: Login, MFA, consent, invite, reset, dan sesi.
+  - name: Account
+    description: Self-service user.
+  - name: Admin Users
+    description: Manajemen user dan role assignment.
+  - name: Admin Clients
+    description: Manajemen client OIDC dan rotasi secret.
+  - name: Admin Roles
+    description: Daftar dan pembuatan role realm.
+  - name: Admin Groups
+    description: Daftar dan pembuatan group.
+  - name: Admin Sessions
+    description: Pemantauan dan pencabutan sesi.
+  - name: Admin Audit
+    description: Penelusuran audit event.
+  - name: Admin Realm
+    description: Settings realm (SMTP, password, session).
+
+paths:
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Login dengan email dan password
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PreSessionCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Hasil login; sesi dibuat jika tidak butuh MFA.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '423': { $ref: '#/components/responses/Locked' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/mfa/verify:
+    post:
+      operationId: verifyMfa
+      tags: [Auth]
+      summary: Verifikasi TOTP atau recovery code untuk menyelesaikan login
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PreSessionCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: Sesi dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaVerifyResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/mfa/enroll:
+    post:
+      operationId: enrollMfa
+      tags: [Auth]
+      summary: Enrollment TOTP paksa untuk admin
+      description: |
+        `action=start` mengembalikan secret dan otpauth URI.
+        `action=confirm` memverifikasi kode, mengaktifkan TOTP, dan mengembalikan
+        recovery code satu kali.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaEnrollRequest'
+      responses:
+        '200':
+          description: Hasil enrollment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/consent:
+    post:
+      operationId: grantConsent
+      tags: [Auth]
+      summary: Menyetujui scope untuk client third-party
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRequest'
+      responses:
+        '200':
+          description: Lanjutkan authorize.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedirectResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: Logout sesi saat ini
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204': { description: Sesi dicabut. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [Auth]
+      summary: Meminta tautan reset password
+      description: Respons selalu sama, terlepas dari apakah email terdaftar.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PreSessionCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '202': { description: Permintaan diterima. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [Auth]
+      summary: Menyelesaikan reset password
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PreSessionCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204': { description: Password diubah; semua sesi dicabut. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [Auth]
+      summary: Memverifikasi email
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PreSessionCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '204': { description: Email terverifikasi. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/accept-invite:
+    post:
+      operationId: acceptInvite
+      tags: [Auth]
+      summary: Menerima undangan dan menetapkan password
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PreSessionCsrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInviteRequest'
+      responses:
+        '204': { description: Password ditetapkan dan email terverifikasi. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/session:
+    get:
+      operationId: getSession
+      tags: [Auth]
+      summary: Melihat sesi saat ini
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Sesi aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfo'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/authorize/request:
+    get:
+      operationId: getAuthorizeRequest
+      tags: [Auth]
+      summary: Melihat detail auth request untuk halaman login
+      security:
+        - authRequestCookie: []
+      parameters:
+        - name: request_id
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+      responses:
+        '200':
+          description: Detail permintaan authorize.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRequestInfo'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/auth/authorize/complete:
+    post:
+      operationId: completeAuthorize
+      tags: [Auth]
+      summary: Menyelesaikan authorize dan mendapatkan redirect URI
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteAuthorizeRequest'
+      responses:
+        '200':
+          description: Redirect ke RP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedirectResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/me:
+    get:
+      operationId: getMe
+      tags: [Account]
+      summary: Profil user saat ini
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Profil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        default:
+          $ref: '#/components/responses/Internal'
+    patch:
+      operationId: updateMe
+      tags: [Account]
+      summary: Mengubah profil
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+      responses:
+        '200':
+          description: Profil terbaru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/me/password:
+    post:
+      operationId: changeMyPassword
+      tags: [Account]
+      summary: Mengubah password
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204': { description: Password diubah; sesi lain dicabut. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/me/sessions:
+    get:
+      operationId: listMySessions
+      tags: [Account]
+      summary: Daftar sesi aktif milik sendiri
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Daftar sesi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MeSession'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/me/sessions/{id}:
+    delete:
+      operationId: revokeMySession
+      tags: [Account]
+      summary: Mencabut sesi milik sendiri
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '204': { description: Sesi dicabut. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/me/mfa/totp:
+    post:
+      operationId: enrollMyTotp
+      tags: [Account]
+      summary: Memulai atau mengonfirmasi enrollment TOTP
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaEnrollRequest'
+      responses:
+        '200':
+          description: Hasil enrollment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+    delete:
+      operationId: disableMyTotp
+      tags: [Account]
+      summary: Menonaktifkan TOTP
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204': { description: TOTP dihapus. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/me/mfa/recovery-codes:
+    post:
+      operationId: regenerateRecoveryCodes
+      tags: [Account]
+      summary: Membuat ulang recovery code
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Recovery code baru; hanya ditampilkan sekali.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recovery_codes]
+                properties:
+                  recovery_codes:
+                    type: array
+                    items: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/users:
+    get:
+      operationId: listUsers
+      tags: [Admin Users]
+      summary: Daftar user
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/After'
+        - $ref: '#/components/parameters/Limit'
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Cari berdasarkan email atau nama.
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, disabled, pending]
+      responses:
+        '200':
+          description: Daftar user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+    post:
+      operationId: createUser
+      tags: [Admin Users]
+      summary: Membuat user dan mengirim undangan
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/users/{id}:
+    get:
+      operationId: getUser
+      tags: [Admin Users]
+      summary: Detail user
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: Detail user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+    patch:
+      operationId: updateUser
+      tags: [Admin Users]
+      summary: Mengubah user atau menonaktifkannya
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User terbaru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/users/{id}/reset-password:
+    post:
+      operationId: triggerPasswordReset
+      tags: [Admin Users]
+      summary: Memicu email reset password
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '202': { description: Email reset dijadwalkan. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/users/{id}/invite:
+    post:
+      operationId: resendInvite
+      tags: [Admin Users]
+      summary: Mengirim ulang undangan
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '202': { description: Undangan dijadwalkan. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/users/{id}/roles:
+    post:
+      operationId: assignUserRoles
+      tags: [Admin Users]
+      summary: Mengganti role user
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRolesRequest'
+      responses:
+        '200':
+          description: Role terbaru.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/clients:
+    get:
+      operationId: listClients
+      tags: [Admin Clients]
+      summary: Daftar client
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/After'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Daftar client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+    post:
+      operationId: createClient
+      tags: [Admin Clients]
+      summary: Membuat client
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClientRequest'
+      responses:
+        '201':
+          description: Client dibuat; secret hanya dikembalikan sekali untuk confidential.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientWithSecret'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/clients/{id}:
+    get:
+      operationId: getClient
+      tags: [Admin Clients]
+      summary: Detail client
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: Detail client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+    patch:
+      operationId: updateClient
+      tags: [Admin Clients]
+      summary: Mengubah client
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateClientRequest'
+      responses:
+        '200':
+          description: Client terbaru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+    delete:
+      operationId: deleteClient
+      tags: [Admin Clients]
+      summary: Menghapus client
+      description: Hanya jika tidak ada sesi/consent aktif; jika ada, client harus dinonaktifkan lebih dulu.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '204': { description: Client dihapus. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/clients/{id}/rotate-secret:
+    post:
+      operationId: rotateClientSecret
+      tags: [Admin Clients]
+      summary: Merotasi client secret
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: Secret baru; hanya ditampilkan sekali.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSecret'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/roles:
+    get:
+      operationId: listRoles
+      tags: [Admin Roles]
+      summary: Daftar role
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Daftar role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+    post:
+      operationId: createRole
+      tags: [Admin Roles]
+      summary: Membuat role
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Role dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/groups:
+    get:
+      operationId: listGroups
+      tags: [Admin Groups]
+      summary: Daftar group
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Daftar group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+    post:
+      operationId: createGroup
+      tags: [Admin Groups]
+      summary: Membuat group
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/groups/{id}:
+    get:
+      operationId: getGroup
+      tags: [Admin Groups]
+      summary: Detail group
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: Detail group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+    patch:
+      operationId: updateGroup
+      tags: [Admin Groups]
+      summary: Mengubah group
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroupRequest'
+      responses:
+        '200':
+          description: Group terbaru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+    delete:
+      operationId: deleteGroup
+      tags: [Admin Groups]
+      summary: Menghapus group
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '204': { description: Group dihapus. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/groups/{id}/members:
+    get:
+      operationId: listGroupMembers
+      tags: [Admin Groups]
+      summary: Daftar anggota group
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: Daftar anggota.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMemberList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+    post:
+      operationId: addGroupMembers
+      tags: [Admin Groups]
+      summary: Menambah anggota group
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddGroupMembersRequest'
+      responses:
+        '200':
+          description: Daftar anggota terbaru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMemberList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/groups/{id}/members/{user_id}:
+    delete:
+      operationId: removeGroupMember
+      tags: [Admin Groups]
+      summary: Mengeluarkan anggota dari group
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204': { description: Anggota dikeluarkan. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/sessions:
+    get:
+      operationId: listSessions
+      tags: [Admin Sessions]
+      summary: Daftar sesi aktif
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/After'
+        - $ref: '#/components/parameters/Limit'
+        - name: user_id
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, revoked, expired]
+      responses:
+        '200':
+          description: Daftar sesi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/sessions/{id}:
+    delete:
+      operationId: revokeSession
+      tags: [Admin Sessions]
+      summary: Mencabut sesi user
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '204': { description: Sesi dicabut. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/audit:
+    get:
+      operationId: listAuditEvents
+      tags: [Admin Audit]
+      summary: Daftar audit event
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/After'
+        - $ref: '#/components/parameters/Limit'
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: actor_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Daftar audit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+  /api/v1/realm/settings:
+    get:
+      operationId: getRealmSettings
+      tags: [Admin Realm]
+      summary: Melihat settings realm
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Settings realm.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealmSettings'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        default:
+          $ref: '#/components/responses/Internal'
+    patch:
+      operationId: updateRealmSettings
+      tags: [Admin Realm]
+      summary: Mengubah settings realm
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRealmSettingsRequest'
+      responses:
+        '200':
+          description: Settings terbaru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealmSettings'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        default:
+          $ref: '#/components/responses/Internal'
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-sso_session
+      description: Cookie sesi HttpOnly. Di dev namanya `sso_session`.
+    authRequestCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-sso_authreq
+      description: Cookie pengikat auth request. Di dev namanya `sso_authreq`.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Harus sama dengan cookie `sso_csrf` dan terikat ke sesi.
+
+  parameters:
+    PreSessionCsrf:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string }
+      description: CSRF token pra-sesi; juga divalidasi terhadap Origin/Referer.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+      description: Wajib untuk create; replay mengembalikan respons tersimpan.
+    PathID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    After:
+      name: after
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Keyset pagination cursor.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+
+  responses:
+    BadRequest:
+      description: Request tidak valid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Tidak terautentikasi.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Tidak berwenang.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Tidak ditemukan.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Konflik state (mis. admin terakhir, MFA sudah aktif).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Validasi gagal.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Locked:
+      description: Akun terkunci sementara.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: Terlalu banyak permintaan.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: Dependensi tidak tersedia (mis. Redis mati).
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Internal:
+      description: Kesalahan server.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          examples: [invalid_credentials, account_locked, csrf_invalid, conflict]
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1, maxLength: 1024 }
+        remember_me: { type: boolean, default: false }
+        request_id:
+          type: string
+          maxLength: 128
+          description: Jika login dipicu dari authorize.
+
+    LoginResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [authenticated, mfa_required, mfa_enrollment_required]
+        mfa_token:
+          type: [string, 'null']
+          description: Ada jika status mfa_required.
+        session_expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Ada jika sesi dibuat.
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/User'
+            - type: 'null'
+        redirect_to:
+          type: [string, 'null']
+          format: uri
+          description: Terisi jika authorize dapat langsung diselesaikan.
+
+    MfaVerifyRequest:
+      type: object
+      required: [mfa_token]
+      properties:
+        mfa_token: { type: string }
+        code:
+          type: string
+          description: Kode TOTP 6 digit; salah satu dari code/recovery_code wajib.
+        recovery_code:
+          type: string
+          description: Recovery code; salah satu dari code/recovery_code wajib.
+
+    MfaVerifyResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [authenticated] }
+        session_expires_at: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/User' }
+
+    MfaEnrollRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [start, confirm]
+        code:
+          type: string
+          description: Wajib untuk action=confirm.
+
+    MfaEnrollResponse:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [start, confirm] }
+        secret:
+          type: [string, 'null']
+          description: Hanya pada action=start.
+        otpauth_uri:
+          type: [string, 'null']
+          description: Hanya pada action=start.
+        recovery_codes:
+          type: [array, 'null']
+          items: { type: string }
+          description: Hanya pada action=confirm; ditampilkan sekali.
+
+    ConsentRequest:
+      type: object
+      required: [request_id, scopes]
+      properties:
+        request_id: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+
+    CompleteAuthorizeRequest:
+      type: object
+      required: [request_id]
+      properties:
+        request_id: { type: string }
+
+    RedirectResponse:
+      type: object
+      required: [redirect_to]
+      properties:
+        redirect_to: { type: string, format: uri }
+
+    AuthRequestInfo:
+      type: object
+      required: [request_id, client_name, scopes]
+      properties:
+        request_id: { type: string }
+        client_id: { type: string }
+        client_name: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        prompt: { type: [string, 'null'] }
+        login_required: { type: boolean }
+        consent_required: { type: boolean }
+
+    SessionInfo:
+      type: object
+      required: [user, expires_at, mfa_enrolled]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        expires_at: { type: string, format: date-time }
+        idle_expires_at: { type: string, format: date-time }
+        mfa_enrolled: { type: boolean }
+        is_admin: { type: boolean }
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token: { type: string }
+        new_password: { type: string, minLength: 12, maxLength: 256 }
+
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+
+    AcceptInviteRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string }
+        password: { type: string, minLength: 12, maxLength: 256 }
+
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string }
+        new_password: { type: string, minLength: 12, maxLength: 256 }
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        given_name: { type: string, maxLength: 100 }
+        family_name: { type: string, maxLength: 100 }
+        locale:
+          type: string
+          enum: [en, id]
+
+    RoleRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    GroupRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    User:
+      type: object
+      required: [id, email, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        username: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
+        given_name: { type: [string, 'null'] }
+        family_name: { type: [string, 'null'] }
+        locale: { type: [string, 'null'] }
+        email_verified_at: { type: [string, 'null'], format: date-time }
+        disabled_at: { type: [string, 'null'], format: date-time }
+        mfa_enrolled: { type: boolean }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/RoleRef' }
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/GroupRef' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    UserList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        next_after:
+          type: [string, 'null']
+
+    CreateUserRequest:
+      type: object
+      required: [email, name]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string, maxLength: 200 }
+        username: { type: [string, 'null'] }
+        send_invite: { type: boolean, default: true }
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        given_name: { type: string, maxLength: 100 }
+        family_name: { type: string, maxLength: 100 }
+        locale:
+          type: string
+          enum: [en, id]
+        disabled:
+          type: boolean
+          description: true mencabut semua sesi dan refresh token.
+
+    AssignRolesRequest:
+      type: object
+      required: [role_ids]
+      properties:
+        role_ids:
+          type: array
+          items: { type: string, format: uuid }
+
+    Client:
+      type: object
+      required: [id, client_id, name, type, redirect_uris]
+      properties:
+        id: { type: string, format: uuid }
+        client_id: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [public, confidential] }
+        redirect_uris:
+          type: array
+          items: { type: string, format: uri }
+        post_logout_redirect_uris:
+          type: array
+          items: { type: string, format: uri }
+        backchannel_logout_uri:
+          type: [string, 'null']
+          format: uri
+        cors_origins:
+          type: array
+          items: { type: string, format: uri }
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: [authorization_code, refresh_token, client_credentials]
+        allowed_scopes:
+          type: array
+          items: { type: string }
+        third_party: { type: boolean }
+        access_token_ttl_seconds: { type: [integer, 'null'], minimum: 60, maximum: 3600 }
+        id_token_ttl_seconds: { type: [integer, 'null'], minimum: 60, maximum: 3600 }
+        disabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    ClientWithSecret:
+      allOf:
+        - $ref: '#/components/schemas/Client'
+        - type: object
+          properties:
+            client_secret:
+              type: [string, 'null']
+              description: Hanya untuk confidential; ditampilkan sekali.
+
+    ClientList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Client' }
+        next_after:
+          type: [string, 'null']
+
+    CreateClientRequest:
+      type: object
+      required: [name, type, redirect_uris]
+      properties:
+        name: { type: string, maxLength: 200 }
+        type: { type: string, enum: [public, confidential] }
+        redirect_uris:
+          type: array
+          minItems: 1
+          items: { type: string, format: uri }
+        post_logout_redirect_uris:
+          type: array
+          items: { type: string, format: uri }
+        backchannel_logout_uri:
+          type: [string, 'null']
+          format: uri
+        cors_origins:
+          type: array
+          items: { type: string, format: uri }
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: [authorization_code, refresh_token, client_credentials]
+        allowed_scopes:
+          type: array
+          items: { type: string }
+        third_party: { type: boolean, default: false }
+        access_token_ttl_seconds: { type: [integer, 'null'], minimum: 60, maximum: 3600 }
+        id_token_ttl_seconds: { type: [integer, 'null'], minimum: 60, maximum: 3600 }
+
+    UpdateClientRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        redirect_uris:
+          type: array
+          items: { type: string, format: uri }
+        post_logout_redirect_uris:
+          type: array
+          items: { type: string, format: uri }
+        backchannel_logout_uri:
+          type: [string, 'null']
+          format: uri
+        cors_origins:
+          type: array
+          items: { type: string, format: uri }
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: [authorization_code, refresh_token, client_credentials]
+        allowed_scopes:
+          type: array
+          items: { type: string }
+        third_party: { type: boolean }
+        access_token_ttl_seconds: { type: [integer, 'null'], minimum: 60, maximum: 3600 }
+        id_token_ttl_seconds: { type: [integer, 'null'], minimum: 60, maximum: 3600 }
+        disabled: { type: boolean }
+
+    ClientSecret:
+      type: object
+      required: [client_id, client_secret, rotated_at]
+      properties:
+        client_id: { type: string }
+        client_secret: { type: string }
+        rotated_at: { type: string, format: date-time }
+
+    Role:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        is_system: { type: boolean }
+
+    RoleList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9._-]{1,63}$'
+        description: { type: [string, 'null'] }
+
+    Group:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        member_count: { type: integer, minimum: 0 }
+
+    GroupList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Group' }
+
+    CreateGroupRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        description: { type: [string, 'null'] }
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        description: { type: [string, 'null'] }
+
+    GroupMember:
+      type: object
+      required: [user_id, email]
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: [string, 'null'] }
+
+    GroupMemberList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/GroupMember' }
+
+    AddGroupMembersRequest:
+      type: object
+      required: [user_ids]
+      properties:
+        user_ids:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+
+    MeSession:
+      type: object
+      required: [id, created_at, last_seen_at]
+      properties:
+        id: { type: string, format: uuid }
+        ip: { type: [string, 'null'] }
+        user_agent: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        last_seen_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        current: { type: boolean }
+
+    AdminSession:
+      type: object
+      required: [id, user_id, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        user_email: { type: string, format: email }
+        ip: { type: [string, 'null'] }
+        user_agent: { type: [string, 'null'] }
+        amr:
+          type: array
+          items: { type: string }
+        auth_time: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        last_seen_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        revoked_at: { type: [string, 'null'], format: date-time }
+
+    SessionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminSession' }
+        next_after:
+          type: [string, 'null']
+
+    AuditEvent:
+      type: object
+      required: [id, type, actor_type, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        actor_type: { type: string, enum: [user, admin, client, system] }
+        actor_id: { type: [string, 'null'] }
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at: { type: string, format: date-time }
+
+    AuditList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEvent' }
+        next_after:
+          type: [string, 'null']
+
+    RealmSettings:
+      type: object
+      required: [realm, password_policy, session_policy, smtp]
+      properties:
+        realm: { type: string }
+        password_policy:
+          type: object
+          properties:
+            min_length: { type: integer, minimum: 12, maximum: 64 }
+        session_policy:
+          type: object
+          properties:
+            idle_minutes: { type: integer, minimum: 5, maximum: 1440 }
+            absolute_hours: { type: integer, minimum: 1, maximum: 168 }
+            admin_idle_minutes: { type: integer, minimum: 5, maximum: 60 }
+            remember_me_days: { type: integer, minimum: 1, maximum: 90 }
+        smtp:
+          type: object
+          properties:
+            host: { type: string }
+            port: { type: integer, minimum: 1, maximum: 65535 }
+            username: { type: [string, 'null'] }
+            from_address: { type: string, format: email }
+            use_tls: { type: boolean }
+            password_set: { type: boolean }
+
+    UpdateRealmSettingsRequest:
+      type: object
+      properties:
+        password_policy:
+          type: object
+          properties:
+            min_length: { type: integer, minimum: 12, maximum: 64 }
+        session_policy:
+          type: object
+          properties:
+            idle_minutes: { type: integer, minimum: 5, maximum: 1440 }
+            absolute_hours: { type: integer, minimum: 1, maximum: 168 }
+            admin_idle_minutes: { type: integer, minimum: 5, maximum: 60 }
+            remember_me_days: { type: integer, minimum: 1, maximum: 90 }
+        smtp:
+          type: object
+          properties:
+            host: { type: string }
+            port: { type: integer, minimum: 1, maximum: 65535 }
+            username: { type: [string, 'null'] }
+            password:
+              type: string
+              writeOnly: true
+              description: Tidak pernah dikembalikan oleh GET.
+            from_address: { type: string, format: email }
+            use_tls: { type: boolean }
