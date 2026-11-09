@@ -310,7 +310,7 @@ func TestIntegrationSelfServiceMFA(t *testing.T) {
 	sessionToken := it.cookie(t, client, csrfCookieName)
 	resp, body = it.request(t, client, http.MethodPost, "/api/v1/me/mfa/totp",
 		domain.MFAEnrollRequest{Action: "start"},
-		map[string]string{"X-CSRF-Token": sessionToken})
+		map[string]string{"X-CSRF-Token": sessionToken, "Origin": "http://localhost:5173"})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("self enroll start = %d, body = %s", resp.StatusCode, body)
 	}
@@ -324,17 +324,17 @@ func TestIntegrationSelfServiceMFA(t *testing.T) {
 	}
 	resp, body = it.request(t, client, http.MethodPost, "/api/v1/me/mfa/totp",
 		domain.MFAEnrollRequest{Action: "confirm", Code: code},
-		map[string]string{"X-CSRF-Token": sessionToken})
+		map[string]string{"X-CSRF-Token": sessionToken, "Origin": "http://localhost:5173"})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("self enroll confirm = %d, body = %s", resp.StatusCode, body)
 	}
 	resp, body = it.request(t, client, http.MethodPost, "/api/v1/me/mfa/recovery-codes", nil,
-		map[string]string{"X-CSRF-Token": sessionToken})
+		map[string]string{"X-CSRF-Token": sessionToken, "Origin": "http://localhost:5173"})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("regenerate codes = %d, body = %s", resp.StatusCode, body)
 	}
 	resp, body = it.request(t, client, http.MethodDelete, "/api/v1/me/mfa/totp", nil,
-		map[string]string{"X-CSRF-Token": sessionToken})
+		map[string]string{"X-CSRF-Token": sessionToken, "Origin": "http://localhost:5173"})
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("disable totp = %d, body = %s", resp.StatusCode, body)
 	}

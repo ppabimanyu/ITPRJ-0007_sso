@@ -79,6 +79,10 @@ func NewRouter(deps Deps) http.Handler {
 	router.Use(RealmResolver)
 
 	h := &handlers{deps: deps}
+	authLimit := h.ipRateLimit(rateLimitPolicy{
+		scope: "auth_ip", limit: authIPLimit, window: authIPWindow,
+		mode: rateLimitProblem, failClosed: true,
+	})
 
 	router.Get("/healthz", healthz)
 	router.Get("/readyz", readyz(deps))
@@ -89,15 +93,12 @@ func NewRouter(deps Deps) http.Handler {
 		r.Get("/version", version(deps.Version))
 
 		r.Group(func(auth chi.Router) {
-			auth.Use(h.ipRateLimit(rateLimitPolicy{
-				scope: "auth_ip", limit: authIPLimit, window: authIPWindow,
-				mode: rateLimitProblem, failClosed: true,
-			}))
 			auth.Use(originAllowed(deps.Config))
-			auth.Get("/auth/csrf", h.csrfToken)
-			auth.Get("/auth/authorize/request", h.authorizeRequestInfo)
+			auth.With(authLimit).Get("/auth/csrf", h.csrfToken)
+			auth.With(authLimit).Get("/auth/authorize/request", h.authorizeRequestInfo)
 
 			auth.Group(func(pre chi.Router) {
+				pre.Use(authLimit)
 				pre.Use(preSessionCSRF(deps.CSRFStore))
 				pre.Post("/auth/login", h.login)
 				pre.Post("/auth/forgot-password", h.forgotPassword)
@@ -118,6 +119,7 @@ func NewRouter(deps Deps) http.Handler {
 		})
 
 		r.Group(func(me chi.Router) {
+			me.Use(originAllowed(deps.Config))
 			me.Use(SessionAuth(deps))
 			me.Use(MFASatisfied(deps))
 			me.Get("/me", h.getMe)
@@ -131,6 +133,7 @@ func NewRouter(deps Deps) http.Handler {
 		})
 
 		r.Group(func(admin chi.Router) {
+			admin.Use(originAllowed(deps.Config))
 			admin.Use(SessionAuth(deps))
 			admin.Use(AdminOnly(deps))
 			admin.Get("/users", h.listUsers)

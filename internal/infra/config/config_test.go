@@ -147,6 +147,16 @@ func TestParseAuthDefaults(t *testing.T) {
 	}
 }
 
+func TestSessionCookieProductionPrefix(t *testing.T) {
+	cfg := &Config{AppEnv: "production"}
+	if got := cfg.SessionCookieName(); got != "__Host-sso_session" {
+		t.Fatalf("SessionCookieName() = %q, want __Host-sso_session", got)
+	}
+	if !cfg.SessionCookieSecure() {
+		t.Fatal("production session cookie must be Secure")
+	}
+}
+
 func TestParseAuthOverrides(t *testing.T) {
 	env := validEnv()
 	env["ALLOWED_ORIGINS"] = "https://app.example.com, https://admin.example.com"
