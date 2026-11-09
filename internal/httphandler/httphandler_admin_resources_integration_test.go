@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ppa/itprj-0007-sso/internal/domain"
+	"github.com/ppa/itprj-0007-sso/internal/repository"
 )
 
 func (it *integration) adminSession(t *testing.T, email, password string) (*http.Client, map[string]string) {
@@ -431,10 +432,16 @@ func TestIntegrationAdminSessionsAuditAndRevoke(t *testing.T) {
 		if event.Type != domain.AuditAdminRoleCreated {
 			t.Fatalf("audit type = %q", event.Type)
 		}
+		if !strings.Contains(string(event.Metadata), roleName) {
+			continue
+		}
 		if strings.Contains(string(event.Metadata), adminEmail) ||
 			strings.Contains(string(event.Metadata), targetEmail) ||
 			strings.Contains(string(event.Metadata), "password") {
 			t.Fatalf("audit metadata leaked a secret or email: %s", event.Metadata)
+		}
+		if event.ActorEmail == nil || *event.ActorEmail != adminEmail {
+			t.Fatalf("audit actor email = %v, want %q", event.ActorEmail, adminEmail)
 		}
 		foundEvent = true
 	}
@@ -566,6 +573,61 @@ func TestIntegrationRealmSettingsSMTPPasswordIsWriteOnly(t *testing.T) {
 		}, headers)
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("short password policy = %d, body = %s", resp.StatusCode, body)
+	}
+}
+
+func TestIntegrationAuditRetentionDeletesOldEvents(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	ctx := context.Background()
+	audits := repository.NewAuditRepository(it.db.Pool)
+
+	oldID := uuid.NewString()
+	recentID := uuid.NewString()
+	now := time.Now().UTC()
+	if err := audits.Insert(ctx, &domain.AuditEvent{
+		ID:        domain.AuditEventID(oldID),
+		RealmID:   realm.ID,
+		ActorType: domain.ActorTypeSystem,
+		Type:      "test.retention.old",
+		Metadata:  []byte("{}"),
+		CreatedAt: now.Add(-91 * 24 * time.Hour),
+	}); err != nil {
+		t.Fatalf("insert old event: %v", err)
+	}
+	if err := audits.Insert(ctx, &domain.AuditEvent{
+		ID:        domain.AuditEventID(recentID),
+		RealmID:   realm.ID,
+		ActorType: domain.ActorTypeSystem,
+		Type:      "test.retention.recent",
+		Metadata:  []byte("{}"),
+		CreatedAt: now.Add(-89 * 24 * time.Hour),
+	}); err != nil {
+		t.Fatalf("insert recent event: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = it.db.Pool.Exec(context.Background(),
+			`DELETE FROM audit_event WHERE id = $1::text::uuid`, recentID)
+	})
+
+	if _, err := audits.DeleteBefore(ctx, now.Add(-90*24*time.Hour)); err != nil {
+		t.Fatalf("delete before cutoff: %v", err)
+	}
+
+	var oldCount, recentCount int
+	if err := it.db.Pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_event WHERE id = $1::text::uuid`, oldID).Scan(&oldCount); err != nil {
+		t.Fatalf("count old event: %v", err)
+	}
+	if oldCount != 0 {
+		t.Fatalf("old event survived retention: %d", oldCount)
+	}
+	if err := it.db.Pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_event WHERE id = $1::text::uuid`, recentID).Scan(&recentCount); err != nil {
+		t.Fatalf("count recent event: %v", err)
+	}
+	if recentCount != 1 {
+		t.Fatalf("recent event count = %d, want 1", recentCount)
 	}
 }
 

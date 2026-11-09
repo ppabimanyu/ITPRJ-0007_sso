@@ -173,7 +173,9 @@ refresh token.
 
 Groups are flat. Membership changes affect the next token, never one already
 issued. Audit metadata never contains passwords, tokens, secrets, or email
-addresses; the viewer shows user IDs and joins email separately when needed.
+addresses. The viewer resolves the actor email through a join and falls back to
+the actor ID. Audit events older than 90 days are deleted by the retention
+worker.
 
 ### Realm SMTP
 

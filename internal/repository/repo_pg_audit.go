@@ -24,6 +24,15 @@ func (r *PgAuditRepository) Insert(ctx context.Context, event *domain.AuditEvent
 	return insertAudit(ctx, r.pool, event)
 }
 
+// DeleteBefore removes audit events older than the retention cutoff.
+func (r *PgAuditRepository) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM audit_event WHERE created_at < $1`, before)
+	if err != nil {
+		return 0, mapError(err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // insertAuditTx writes the event inside a business transaction so the evidence
 // and the state change commit together.
 func insertAuditTx(ctx context.Context, tx pgx.Tx, event *domain.AuditEvent) error {
@@ -74,3 +83,5 @@ func (r *PgAuditRepository) ListByRealm(ctx context.Context, realmID domain.Real
 	}
 	return events, mapError(rows.Err())
 }
+
+var _ domain.AuditRetentionRepository = (*PgAuditRepository)(nil)

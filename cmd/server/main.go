@@ -103,6 +103,9 @@ func run() error {
 	worker.UseRealmMail(repository.NewSMTPSenderFactory(mailer, ring), realmSettings)
 	go worker.Run(ctx)
 
+	retention := workerhandler.NewRetentionWorker(audit, log)
+	go retention.Run(ctx)
+
 	handler := httphandler.NewRouter(httphandler.Deps{
 		Config:        cfg,
 		DB:            db,
