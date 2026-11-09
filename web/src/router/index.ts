@@ -57,6 +57,12 @@ const router = createRouter({
       meta: { titleKey: 'account.title', requiresAuth: true },
     },
     {
+      path: '/mfa/enroll',
+      name: 'mfa-enroll',
+      component: () => import('@/features/mfa/MfaEnrollView.vue'),
+      meta: { titleKey: 'auth.enroll.title', requiresAuth: true },
+    },
+    {
       path: '/admin',
       name: 'admin',
       component: () => import('@/features/admin/AdminView.vue'),
@@ -87,6 +93,12 @@ router.beforeEach(async (to) => {
   }
   if (session === null) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (session.isAdmin && !session.mfaEnrolled && to.name !== 'mfa-enroll') {
+    return {
+      name: 'mfa-enroll',
+      query: to.fullPath === '/' ? {} : { redirect: to.fullPath },
+    }
   }
   if (to.meta.requiresAdmin && !session.isAdmin) {
     return { name: 'account' }

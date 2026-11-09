@@ -51,6 +51,18 @@ export function notifySessionExpired() {
   sessionExpiredHandler?.()
 }
 
+type MfaRequiredHandler = () => void
+
+let mfaRequiredHandler: MfaRequiredHandler | null = null
+
+export function setMfaRequiredHandler(handler: MfaRequiredHandler | null) {
+  mfaRequiredHandler = handler
+}
+
+export function notifyMfaRequired() {
+  mfaRequiredHandler?.()
+}
+
 export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
 export interface ApiRequest {
@@ -58,6 +70,7 @@ export interface ApiRequest {
   body?: unknown
   csrfToken?: string | null
   redirectOnSessionExpired?: boolean
+  redirectOnMfaRequired?: boolean
 }
 
 function parseFieldErrors(value: unknown): ProblemFieldError[] {
@@ -136,6 +149,13 @@ export async function apiFetch(path: string, options: ApiRequest = {}): Promise<
       options.redirectOnSessionExpired !== false
     ) {
       notifySessionExpired()
+    }
+    if (
+      error.status === 403 &&
+      error.code === 'mfa_required' &&
+      options.redirectOnMfaRequired !== false
+    ) {
+      notifyMfaRequired()
     }
     throw error
   }
