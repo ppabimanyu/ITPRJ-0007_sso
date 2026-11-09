@@ -7,6 +7,7 @@ type Client struct {
 	ID                    ClientID
 	RealmID               RealmID
 	ClientID              string
+	Name                  string
 	Type                  string
 	GrantTypes            []string
 	AllowedScopes         []string

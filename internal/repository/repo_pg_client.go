@@ -21,13 +21,17 @@ func NewClientRepository(pool *pgxpool.Pool) *PgClientRepository {
 }
 
 func (r *PgClientRepository) Create(ctx context.Context, client *domain.Client, secret *domain.ClientSecret, redirects []domain.ClientRedirectURI, origins []domain.ClientCORSOrigin) error {
+	return r.create(ctx, client, secret, redirects, origins, nil)
+}
+
+func (r *PgClientRepository) create(ctx context.Context, client *domain.Client, secret *domain.ClientSecret, redirects []domain.ClientRedirectURI, origins []domain.ClientCORSOrigin, audit *domain.AuditEvent) error {
 	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
-			INSERT INTO client (id, realm_id, client_id, type, grant_types, allowed_scopes,
+			INSERT INTO client (id, realm_id, client_id, name, type, grant_types, allowed_scopes,
 				third_party, access_token_ttl_seconds, id_token_ttl_seconds, backchannel_logout_uri)
-			VALUES ($1::text::uuid, $2::text::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+			VALUES ($1::text::uuid, $2::text::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING created_at, updated_at`,
-			string(client.ID), string(client.RealmID), client.ClientID, client.Type,
+			string(client.ID), string(client.RealmID), client.ClientID, client.Name, client.Type,
 			client.GrantTypes, client.AllowedScopes, client.ThirdParty,
 			client.AccessTokenTTLSeconds, client.IDTokenTTLSeconds,
 			client.BackchannelLogoutURI,
@@ -65,7 +69,7 @@ func (r *PgClientRepository) Create(ctx context.Context, client *domain.Client, 
 				return mapError(err)
 			}
 		}
-		return nil
+		return insertAuditTx(ctx, tx, audit)
 	})
 }
 
