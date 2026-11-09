@@ -83,9 +83,16 @@ func NewRouter(deps Deps) http.Handler {
 	router.Get("/healthz", healthz)
 	router.Get("/readyz", readyz(deps))
 	router.Route("/api/v1", func(r chi.Router) {
+		r.Use(h.ipRateLimit(rateLimitPolicy{
+			scope: "api_ip", limit: apiIPLimit, window: apiIPWindow, mode: rateLimitProblem,
+		}))
 		r.Get("/version", version(deps.Version))
 
 		r.Group(func(auth chi.Router) {
+			auth.Use(h.ipRateLimit(rateLimitPolicy{
+				scope: "auth_ip", limit: authIPLimit, window: authIPWindow,
+				mode: rateLimitProblem, failClosed: true,
+			}))
 			auth.Use(originAllowed(deps.Config))
 			auth.Get("/auth/csrf", h.csrfToken)
 			auth.Get("/auth/authorize/request", h.authorizeRequestInfo)
@@ -164,6 +171,10 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	router.Route("/realms/{realm}", func(r chi.Router) {
+		r.Use(h.ipRateLimit(rateLimitPolicy{
+			scope: "oidc_ip", limit: oidcIPLimit, window: oidcIPWindow,
+			mode: rateLimitOAuth, failClosed: true,
+		}))
 		r.Get("/.well-known/openid-configuration", h.discovery)
 		r.Get("/jwks", h.jwks)
 		r.Get("/authorize", h.authorize)

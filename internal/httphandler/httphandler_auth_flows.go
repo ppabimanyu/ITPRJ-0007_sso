@@ -26,6 +26,12 @@ func (h *handlers) forgotPassword(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, r, http.StatusBadRequest, domain.CodeBadRequest, "email is required")
 		return
 	}
+	if !h.allowRate(w, r, rateLimitPolicy{
+		scope: "forgot_ip", limit: forgotIPLimit, window: forgotIPWindow,
+		mode: rateLimitProblem, failClosed: true,
+	}, clientIP(r)) {
+		return
+	}
 	realm, err := h.realm(r.Context())
 	if err != nil {
 		h.logInternal(r.Context(), "realm_lookup_failed", err)

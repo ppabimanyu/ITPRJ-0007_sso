@@ -30,6 +30,12 @@ func (h *handlers) token(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.allowRate(w, r, rateLimitPolicy{
+		scope: "token_client", limit: tokenClientLimit, window: tokenClientWindow,
+		mode: rateLimitOAuth, failClosed: true,
+	}, client.ClientID) {
+		return
+	}
 	switch grant := r.PostForm.Get("grant_type"); grant {
 	case domain.GrantTypeAuthorizationCode:
 		h.exchangeCode(w, r, realm, client)
