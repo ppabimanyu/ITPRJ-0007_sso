@@ -132,6 +132,64 @@ Disabling a user revokes every session and refresh token. The last active
 `Idempotency-Key` returns the stored 201 response; reusing it with a different
 body returns `409 idempotency_mismatch`.
 
+### Admin resources
+
+The rest of the admin surface uses the same `platform-admin` plus completed
+MFA session. Writes need the session CSRF token, and create endpoints honor
+`Idempotency-Key`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/clients` | Keyset list with `after` and `limit` |
+| `POST` | `/api/v1/clients` | Create a client, optional `Idempotency-Key` |
+| `GET` | `/api/v1/clients/{id}` | Client detail without its secret |
+| `PATCH` | `/api/v1/clients/{id}` | Replace URI lists, origins, grants, scopes, TTLs, or disable |
+| `DELETE` | `/api/v1/clients/{id}` | Delete only without an active session or consent |
+| `POST` | `/api/v1/clients/{id}/rotate-secret` | Return a new confidential secret once |
+| `GET` | `/api/v1/roles` | List realm roles |
+| `POST` | `/api/v1/roles` | Create a role, optional `Idempotency-Key` |
+| `GET` | `/api/v1/groups` | List groups with member counts |
+| `POST` | `/api/v1/groups` | Create a group, optional `Idempotency-Key` |
+| `GET` | `/api/v1/groups/{id}` | Group detail |
+| `PATCH` | `/api/v1/groups/{id}` | Rename or change the description |
+| `DELETE` | `/api/v1/groups/{id}` | Delete a group and its membership |
+| `GET` | `/api/v1/groups/{id}/members` | List members |
+| `POST` | `/api/v1/groups/{id}/members` | Add users by `user_ids` |
+| `DELETE` | `/api/v1/groups/{id}/members/{user_id}` | Remove a member |
+| `GET` | `/api/v1/sessions` | List sessions with `user_id`, `status`, `after`, and `limit` |
+| `DELETE` | `/api/v1/sessions/{id}` | Revoke a session and its refresh family |
+| `GET` | `/api/v1/audit` | Filter by `from`, `to`, `type`, `actor_id`, `after`, and `limit` |
+| `GET` | `/api/v1/realm/settings` | Read SMTP, password, and session policy |
+| `PATCH` | `/api/v1/realm/settings` | Update the same settings |
+
+Confidential client secrets are generated on create and returned once. Rotation
+returns the new value once and revokes the previous hashes. Redirect URIs match
+exactly and must use HTTPS, except loopback HTTP in dev; wildcards are rejected.
+A backchannel URI must not resolve to a literal private or loopback address
+outside dev. Disabling a client revokes its refresh tokens. Sessions are
+user-wide rather than client-scoped, so a session shared with another client
+stays alive; delete stays blocked while a client has a consent row or a live
+refresh token.
+
+Groups are flat. Membership changes affect the next token, never one already
+issued. Audit metadata never contains passwords, tokens, secrets, or email
+addresses; the viewer shows user IDs and joins email separately when needed.
+
+### Realm SMTP
+
+`realm.settings` stores the password and session policy plus per-realm SMTP.
+SMTP passwords are encrypted with the active master key and are write-only: GET
+returns `password_set` and never the value. An empty `smtp.host` or
+`smtp.from_address`, or a realm with no settings, makes the outbox worker use
+the environment `SMTP_*` sender. Development can set MailHog explicitly:
+
+```sh
+curl -s -b cookies.txt -X PATCH \
+  -H "X-CSRF-Token: $SESSION_CSRF" -H 'Content-Type: application/json' \
+  -d '{"smtp":{"host":"localhost","port":1025,"from_address":"no-reply@example.com","use_tls":false,"password":"dev-only-smtp-password"}}' \
+  http://localhost:8080/api/v1/realm/settings
+```
+
 ### Cookies and CSRF
 
 Production uses the `__Host-sso_session` cookie with `HttpOnly`, `Secure`, and

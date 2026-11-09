@@ -74,6 +74,86 @@ func (f *fakeSender) Send(_ context.Context, uri, token string) error {
 	return nil
 }
 
+type fakeMailSender struct {
+	sent int
+}
+
+func (f *fakeMailSender) Send(context.Context, domain.MailMessage) error {
+	f.sent++
+	return nil
+}
+
+type fakeRealmSettings struct {
+	settings map[domain.RealmID]domain.RealmSettings
+}
+
+func (f *fakeRealmSettings) GetSettings(_ context.Context, realmID domain.RealmID) (*domain.RealmSettings, error) {
+	settings, ok := f.settings[realmID]
+	if !ok {
+		return domain.DefaultRealmSettings(), nil
+	}
+	return &settings, nil
+}
+
+func (f *fakeRealmSettings) UpdateSettings(_ context.Context, _ domain.RealmID, settings *domain.RealmSettings, _ *domain.AuditEvent) (*domain.RealmSettings, error) {
+	return settings, nil
+}
+
+type selectingMailFactory struct {
+	fallback *fakeMailSender
+	realm    *fakeMailSender
+}
+
+func (f *selectingMailFactory) SenderFor(settings domain.RealmSettings) (domain.MailSender, error) {
+	if settings.SMTP.Host == "" {
+		return f.fallback, nil
+	}
+	return f.realm, nil
+}
+
+func TestOutboxEmailUsesRealmSenderWithEnvFallback(t *testing.T) {
+	repo := &fakeOutbox{}
+	fallback := &fakeMailSender{}
+	realmSender := &fakeMailSender{}
+	settings := &fakeRealmSettings{settings: map[domain.RealmID]domain.RealmSettings{
+		"realm-with-smtp": func() domain.RealmSettings {
+			value := *domain.DefaultRealmSettings()
+			value.SMTP.Host = "smtp.example.com"
+			value.SMTP.FromAddress = "no-reply@example.com"
+			return value
+		}(),
+	}}
+	worker := NewOutboxWorker(repo, fallback, nil, nil, slog.New(slog.DiscardHandler))
+	worker.UseRealmMail(&selectingMailFactory{fallback: fallback, realm: realmSender}, settings)
+	ctx := logger.WithLogger(context.Background(), slog.New(slog.DiscardHandler))
+
+	payload, err := json.Marshal(domain.MailJob{
+		To:       "user@example.com",
+		Name:     "User",
+		Template: "invite",
+		Locale:   "en",
+		Link:     "https://idp.example/accept-invite?token=value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []*domain.OutboxEvent{
+		{ID: "outbox-realm", RealmID: "realm-with-smtp", Type: domain.OutboxEmailInvite, Payload: payload},
+		{ID: "outbox-fallback", RealmID: "realm-empty", Type: domain.OutboxEmailInvite, Payload: payload},
+	} {
+		worker.handle(ctx, event)
+	}
+	if realmSender.sent != 1 {
+		t.Fatalf("realm sender sends = %d, want 1", realmSender.sent)
+	}
+	if fallback.sent != 1 {
+		t.Fatalf("fallback sends = %d, want 1", fallback.sent)
+	}
+	if len(repo.sent) != 2 {
+		t.Fatalf("marked sent = %v, want 2", repo.sent)
+	}
+}
+
 func TestOutboxDispatchesBackchannelLogout(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{
 		"client_id": "sample-spa",

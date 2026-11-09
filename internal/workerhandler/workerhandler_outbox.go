@@ -26,14 +26,16 @@ const (
 // render and send mail; logout events POST a signed backchannel logout token.
 // A row that fails three retries is marked failed permanently.
 type OutboxWorker struct {
-	repo     domain.OutboxRepository
-	mail     domain.MailSender
-	signer   domain.LogoutTokenSigner
-	logout   domain.LogoutSender
-	log      *slog.Logger
-	poll     time.Duration
-	lockFor  time.Duration
-	maxRetry int
+	repo        domain.OutboxRepository
+	mail        domain.MailSender
+	mailFactory domain.MailSenderFactory
+	realms      domain.RealmSettingsRepository
+	signer      domain.LogoutTokenSigner
+	logout      domain.LogoutSender
+	log         *slog.Logger
+	poll        time.Duration
+	lockFor     time.Duration
+	maxRetry    int
 }
 
 func NewOutboxWorker(repo domain.OutboxRepository, mail domain.MailSender, signer domain.LogoutTokenSigner, logout domain.LogoutSender, log *slog.Logger) *OutboxWorker {
@@ -47,6 +49,13 @@ func NewOutboxWorker(repo domain.OutboxRepository, mail domain.MailSender, signe
 		lockFor:  defaultLockFor,
 		maxRetry: maxRetries,
 	}
+}
+
+// UseRealmMail switches email delivery to the realm's SMTP settings with the
+// worker's mail sender as the fallback.
+func (w *OutboxWorker) UseRealmMail(factory domain.MailSenderFactory, realms domain.RealmSettingsRepository) {
+	w.mailFactory = factory
+	w.realms = realms
 }
 
 // Run polls until the context is cancelled.
@@ -110,7 +119,27 @@ func (w *OutboxWorker) handleEmail(ctx context.Context, log *slog.Logger, event 
 		w.failPermanently(ctx, event, "invalid template")
 		return
 	}
-	if err := w.mail.Send(ctx, domain.MailMessage{
+	sender := w.mail
+	if w.mailFactory != nil && w.realms != nil {
+		settings, err := w.realms.GetSettings(ctx, event.RealmID)
+		if err != nil {
+			log.Warn("outbox_realm_settings_failed", "error", err)
+			w.retryOrFail(ctx, event, "realm settings read failed")
+			return
+		}
+		sender, err = w.mailFactory.SenderFor(*settings)
+		if err != nil {
+			log.Warn("outbox_realm_sender_failed", "error", err)
+			w.retryOrFail(ctx, event, "realm mail sender failed")
+			return
+		}
+	}
+	if sender == nil {
+		log.Error("outbox_mail_not_configured")
+		w.failPermanently(ctx, event, "mail sender is not configured")
+		return
+	}
+	if err := sender.Send(ctx, domain.MailMessage{
 		To:      job.To,
 		Subject: message.Subject,
 		Text:    message.Text,

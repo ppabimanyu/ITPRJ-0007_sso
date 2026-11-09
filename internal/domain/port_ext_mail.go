@@ -10,7 +10,13 @@ type MailMessage struct {
 	HTML    string
 }
 
-// MailSender is an external SMTP boundary placeholder for M2.
+// MailSender is the external SMTP boundary.
 type MailSender interface {
 	Send(ctx context.Context, message MailMessage) error
+}
+
+// MailSenderFactory selects the transport for a realm. It returns the
+// environment sender when the realm has no SMTP settings.
+type MailSenderFactory interface {
+	SenderFor(settings RealmSettings) (MailSender, error)
 }

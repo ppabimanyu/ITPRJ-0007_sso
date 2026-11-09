@@ -13,14 +13,16 @@ import (
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ppa/itprj-0007-sso/internal/domain"
+	"github.com/ppa/itprj-0007-sso/internal/pkg"
 )
 
-// SMTPSenderConfig is the env-provided SMTP boundary. Per-realm SMTP arrives in
-// M4; M2 uses one sender for the service.
+// SMTPSenderConfig is the SMTP boundary. Realm settings produce one sender per
+// realm; the environment config remains the fallback.
 type SMTPSenderConfig struct {
 	Host     string
 	Port     string
@@ -37,6 +39,56 @@ type SMTPSender struct {
 
 func NewSMTPSender(cfg SMTPSenderConfig) *SMTPSender {
 	return &SMTPSender{cfg: cfg}
+}
+
+// SMTPSenderFactory selects the realm transport. An empty realm host or from
+// address falls back to the environment sender.
+type SMTPSenderFactory struct {
+	fallback  domain.MailSender
+	keyring   *pkg.Keyring
+	newSender func(SMTPSenderConfig) domain.MailSender
+}
+
+func NewSMTPSenderFactory(fallback domain.MailSender, keyring *pkg.Keyring) *SMTPSenderFactory {
+	return &SMTPSenderFactory{
+		fallback: fallback,
+		keyring:  keyring,
+		newSender: func(cfg SMTPSenderConfig) domain.MailSender {
+			return NewSMTPSender(cfg)
+		},
+	}
+}
+
+// SenderFor builds a sender from realm settings, decrypting the stored SMTP
+// password only when the realm config is complete.
+func (f *SMTPSenderFactory) SenderFor(settings domain.RealmSettings) (domain.MailSender, error) {
+	smtpSettings := settings.SMTP
+	if smtpSettings.Host == "" || smtpSettings.FromAddress == "" {
+		return f.fallback, nil
+	}
+	password := ""
+	if len(smtpSettings.PasswordEncrypted) > 0 {
+		if f.keyring == nil {
+			return nil, errors.New("master keyring is required to read the SMTP password")
+		}
+		plaintext, err := f.keyring.Decrypt(smtpSettings.PasswordEncrypted)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt SMTP password: %w", err)
+		}
+		password = string(plaintext)
+	}
+	username := ""
+	if smtpSettings.Username != nil {
+		username = *smtpSettings.Username
+	}
+	return f.newSender(SMTPSenderConfig{
+		Host:     smtpSettings.Host,
+		Port:     strconv.Itoa(smtpSettings.Port),
+		From:     smtpSettings.FromAddress,
+		Username: username,
+		Password: password,
+		TLS:      smtpSettings.UseTLS,
+	}), nil
 }
 
 func (s *SMTPSender) Send(ctx context.Context, message domain.MailMessage) error {

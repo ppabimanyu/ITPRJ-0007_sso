@@ -100,6 +100,7 @@ func run() error {
 	})
 	worker := workerhandler.NewOutboxWorker(outbox, mailer, signingKeys,
 		repository.NewLogoutSender(), log)
+	worker.UseRealmMail(repository.NewSMTPSenderFactory(mailer, ring), realmSettings)
 	go worker.Run(ctx)
 
 	handler := httphandler.NewRouter(httphandler.Deps{
