@@ -489,7 +489,7 @@ async function submit() {
             <input
               v-model="form.rememberMe"
               type="checkbox"
-              class="h-4 w-4 rounded border-input text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              class="h-4 w-4 rounded border-input text-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
             {{ t('auth.login.remember') }}
           </label>

@@ -99,7 +99,7 @@ function currentLocale(): AppLocale {
           <select
             id="locale-switch"
             :value="currentLocale()"
-            class="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            class="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             @change="changeLocale"
           >
             <option value="en">

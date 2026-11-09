@@ -35,7 +35,7 @@ const emit = defineEmits<{
       <DialogContent
         :class="
           cn(
-            'fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-6 text-card-foreground shadow-lg focus:outline-none',
+            'fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-6 text-card-foreground shadow-lg focus:outline-hidden',
             props.contentClass,
           )
         "
@@ -52,7 +52,7 @@ const emit = defineEmits<{
           </DialogDescription>
         </div>
         <DialogClose
-          class="absolute right-4 top-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="absolute right-4 top-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           :aria-label="props.closeLabel"
         >
           <span aria-hidden="true">×</span>
