@@ -8,4 +8,6 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id UserID) (*User, error)
 	GetByEmail(ctx context.Context, realmID RealmID, email string) (*User, error)
 	ListByRealm(ctx context.Context, realmID RealmID, limit, offset int) ([]User, error)
+	UpdateProfile(ctx context.Context, user *User) error
+	MFAEnrolled(ctx context.Context, userID UserID) (bool, error)
 }

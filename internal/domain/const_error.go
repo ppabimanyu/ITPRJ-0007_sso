@@ -24,4 +24,6 @@ const (
 	CodeBadRequest          = "bad_request"
 	CodeUnauthorized        = "unauthorized"
 	CodeInternal            = "internal_error"
+	CodeNotImplemented      = "not_implemented"
+	CodeServiceUnavailable  = "service_unavailable"
 )

@@ -60,6 +60,59 @@ printf '%s\n' 'Dev-Only-Passw0rd!' | go run ./cmd/migration seed --password-stdi
 Both commands converge on the same state when rerun. `rotate-key` and
 `rotate-master-key` exit non-zero until M3.
 
+## Auth API (M2)
+
+Login, session, and account endpoints live under `/api/v1`. The SPA is not part
+of this milestone; the API is complete and testable with curl.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/auth/csrf` | Issue the pre-session CSRF token and cookie |
+| `POST` | `/api/v1/auth/login` | Email and password login |
+| `GET` | `/api/v1/auth/session` | Current user, roles, and expiry |
+| `POST` | `/api/v1/auth/logout` | Revoke the current session |
+| `POST` | `/api/v1/auth/forgot-password` | Queue a reset email, always 202 |
+| `POST` | `/api/v1/auth/reset-password` | Consume the reset token and revoke sessions |
+| `POST` | `/api/v1/auth/verify-email` | Consume a verification token |
+| `POST` | `/api/v1/auth/accept-invite` | Set a password and verify the email |
+| `GET`/`PATCH` | `/api/v1/me` | Read or change the profile |
+| `POST` | `/api/v1/me/password` | Change the password, revoke other sessions |
+| `GET` | `/api/v1/me/sessions` | List active sessions |
+| `DELETE` | `/api/v1/me/sessions/{id}` | Revoke one owned session |
+
+MFA endpoints return 501 until M4.
+
+### Cookies and CSRF
+
+Production uses the `__Host-sso_session` cookie with `HttpOnly`, `Secure`, and
+`SameSite=Lax`. Development over HTTP uses `sso_session` without `Secure`.
+`sso_csrf` is readable by JavaScript and carries the double-submit token.
+
+Pre-session endpoints need a token from `GET /api/v1/auth/csrf`. The raw token
+is stored only as a SHA-256 digest in Redis for 15 minutes. Send the same value
+in `X-CSRF-Token` and as the `sso_csrf` cookie, and send an `Origin` header that
+appears in `ALLOWED_ORIGINS`. Successful login replaces the pre-session token
+with a session-bound token whose digest is stored on the session row. Logout
+and every `/api/v1/me` write check that session-bound token.
+
+```sh
+curl -s -c cookies.txt -H 'Origin: http://localhost:5173' \
+  http://localhost:8080/api/v1/auth/csrf -o csrf.json
+CSRF=$(sed -E 's/.*"csrf_token":"([^"]+)".*/\1/' csrf.json)
+
+curl -s -b cookies.txt -c cookies.txt \
+  -H "X-CSRF-Token: $CSRF" -H 'Origin: http://localhost:5173' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com","password":"your-dev-password"}' \
+  http://localhost:8080/api/v1/auth/login
+
+curl -s -b cookies.txt http://localhost:8080/api/v1/auth/session
+```
+
+Password reset and verification links point at `EXTERNAL_URL`. The worker polls
+the outbox every second and delivers through `SMTP_HOST:SMTP_PORT` (MailHog at
+`http://localhost:8025` in Compose). `SMTP_TLS=true` requires STARTTLS.
+
 ## Run locally without containers
 
 ```sh
@@ -123,8 +176,8 @@ not tracked, so only `internal/webui/dist/.gitkeep` lives in the repository.
 | `GET /admin` | SPA admin placeholder; the console lands in M4 |
 
 Every response carries `X-Request-ID` and a W3C `traceparent`. JSON logs include
-`request_id`, `trace_id`, and `span_id`, plus `user_id` after authentication
-lands. Email, tokens, passwords, cookies, and bodies are redacted.
+`request_id`, `trace_id`, and `span_id`, plus `user_id` after session
+authentication. Email, tokens, passwords, cookies, and bodies are redacted.
 
 ## Make targets
 

@@ -124,6 +124,87 @@ func TestParseInvalid(t *testing.T) {
 	}
 }
 
+func TestParseAuthDefaults(t *testing.T) {
+	cfg, err := Parse(lookup(validEnv()))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Password.MinLength != 12 {
+		t.Errorf("Password.MinLength = %d, want 12", cfg.Password.MinLength)
+	}
+	if !cfg.OriginAllowed("http://localhost:8080") {
+		t.Errorf("EXTERNAL_URL origin is not allowed: %v", cfg.AllowedOrigins)
+	}
+	if !cfg.OriginAllowed("http://localhost:5173") {
+		t.Errorf("dev SPA origin is not allowed: %v", cfg.AllowedOrigins)
+	}
+	if cfg.SessionCookieName() != "sso_session" {
+		t.Errorf("SessionCookieName() = %q", cfg.SessionCookieName())
+	}
+	if cfg.SMTP.Host != "localhost" || cfg.SMTP.Port != "1025" ||
+		cfg.SMTP.From != "no-reply@example.com" || cfg.SMTP.TLS {
+		t.Errorf("SMTP defaults = %+v", cfg.SMTP)
+	}
+}
+
+func TestParseAuthOverrides(t *testing.T) {
+	env := validEnv()
+	env["ALLOWED_ORIGINS"] = "https://app.example.com, https://admin.example.com"
+	env["PASSWORD_MIN_LENGTH"] = "16"
+	env["SMTP_HOST"] = "smtp.example.com"
+	env["SMTP_PORT"] = "587"
+	env["SMTP_FROM"] = "sso@example.com"
+	env["SMTP_USERNAME"] = "sso"
+	env["SMTP_PASSWORD"] = "not-a-real-secret"
+	env["SMTP_TLS"] = "true"
+
+	cfg, err := Parse(lookup(env))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(cfg.AllowedOrigins) != 2 || !cfg.OriginAllowed("https://app.example.com") {
+		t.Errorf("AllowedOrigins = %v", cfg.AllowedOrigins)
+	}
+	if cfg.OriginAllowed("http://localhost:5173") {
+		t.Error("explicit ALLOWED_ORIGINS still allowed the dev SPA origin")
+	}
+	if cfg.Password.MinLength != 16 {
+		t.Errorf("Password.MinLength = %d", cfg.Password.MinLength)
+	}
+	if cfg.SMTP.Host != "smtp.example.com" || cfg.SMTP.Port != "587" ||
+		cfg.SMTP.From != "sso@example.com" || !cfg.SMTP.TLS || cfg.SMTP.Username != "sso" {
+		t.Errorf("SMTP = %+v", cfg.SMTP)
+	}
+}
+
+func TestParseAuthInvalid(t *testing.T) {
+	tests := map[string]struct {
+		key   string
+		value string
+		want  string
+	}{
+		"origin path":   {"ALLOWED_ORIGINS", "https://app.example.com/callback", "ALLOWED_ORIGINS"},
+		"origin scheme": {"ALLOWED_ORIGINS", "ftp://app.example.com", "ALLOWED_ORIGINS"},
+		"password min":  {"PASSWORD_MIN_LENGTH", "8", "PASSWORD_MIN_LENGTH"},
+		"smtp port":     {"SMTP_PORT", "0", "SMTP_PORT"},
+		"smtp from":     {"SMTP_FROM", "not-an-address", "SMTP_FROM"},
+		"smtp tls":      {"SMTP_TLS", "sometimes", "SMTP_TLS"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			env := validEnv()
+			env[tt.key] = tt.value
+			_, err := Parse(lookup(env))
+			if err == nil {
+				t.Fatalf("Parse() with invalid %s succeeded", tt.key)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("error %q does not contain %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestProductionRequiresHTTPS(t *testing.T) {
 	env := validEnv()
 	env["APP_ENV"] = "production"

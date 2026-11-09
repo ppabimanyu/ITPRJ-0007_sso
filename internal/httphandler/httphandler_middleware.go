@@ -2,10 +2,12 @@ package httphandler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -13,7 +15,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ppa/itprj-0007-sso/internal/domain"
+	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/logger"
+	"github.com/ppa/itprj-0007-sso/internal/pkg"
+	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
 )
 
 type realmContextKey struct{}
@@ -22,6 +27,31 @@ type realmContextKey struct{}
 func RealmFromContext(ctx context.Context) string {
 	realm, _ := ctx.Value(realmContextKey{}).(string)
 	return realm
+}
+
+type currentSessionKey struct{}
+
+// CurrentSession is the authenticated request view used by handlers.
+type CurrentSession struct {
+	Session     *domain.Session
+	User        *domain.User
+	Roles       []domain.Role
+	MFAEnrolled bool
+}
+
+// SessionFromContext returns the session placed by SessionAuth.
+func SessionFromContext(ctx context.Context) *CurrentSession {
+	current, _ := ctx.Value(currentSessionKey{}).(*CurrentSession)
+	return current
+}
+
+func isAdmin(roles []domain.Role) bool {
+	for _, role := range roles {
+		if role.Name == domain.PlatformAdminRole {
+			return true
+		}
+	}
+	return false
 }
 
 // RequestID propagates or creates X-Request-ID and puts it in the request
@@ -169,13 +199,15 @@ func BodyLimit(next http.Handler) http.Handler {
 	})
 }
 
-// Logger writes one JSON access line per request. Query strings are never
-// logged.
+// Logger writes one JSON access line per request. The request state holder lets
+// SessionAuth add user_id after this middleware starts the timer.
 func Logger(base *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
+			state := logger.NewRequestState()
 			ctx := logger.WithLogger(r.Context(), base)
+			ctx = logger.WithRequestState(ctx, state)
 			recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(recorder, r.WithContext(ctx))
 
@@ -219,9 +251,161 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
-// RateLimit is the M1 seam. M2 replaces it with the Redis counter.
-func RateLimit(next http.Handler) http.Handler {
-	return next
+// SessionAuth reads the session cookie, validates it against Postgres, and
+// populates the user_id used by the access log. It never writes the user_id
+// for a rejected session.
+func SessionAuth(deps Deps) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if deps.Sessions == nil {
+				WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
+					"session storage is unavailable")
+				return
+			}
+			cookie, err := r.Cookie(deps.Config.SessionCookieName())
+			if err != nil || cookie.Value == "" {
+				WriteProblem(w, r, http.StatusUnauthorized, domain.CodeSessionExpired,
+					"session is missing or expired")
+				return
+			}
+			current, err := deps.Sessions.GetByTokenHash(r.Context(), pkg.SHA256Hex(cookie.Value))
+			if errors.Is(err, domain.ErrNotFound) {
+				WriteProblem(w, r, http.StatusUnauthorized, domain.CodeSessionExpired,
+					"session is missing or expired")
+				return
+			}
+			if err != nil {
+				logger.FromContext(r.Context()).Error("session_lookup_failed", "error", err)
+				WriteProblem(w, r, http.StatusInternalServerError, domain.CodeInternal,
+					"the server could not complete the request")
+				return
+			}
+
+			now := time.Now().UTC()
+			session := current.Session
+			if session.RevokedAt != nil ||
+				current.User.DisabledAt != nil ||
+				!session.IdleExpiresAt.After(now) ||
+				!session.AbsoluteExpiresAt.After(now) {
+				WriteProblem(w, r, http.StatusUnauthorized, domain.CodeSessionExpired,
+					"session is missing or expired")
+				return
+			}
+
+			admin := isAdmin(current.Roles)
+			idleExpiresAt := now.Add(sessionIdleTTL(admin, session.RememberMe))
+			if idleExpiresAt.After(session.AbsoluteExpiresAt) {
+				idleExpiresAt = session.AbsoluteExpiresAt
+			}
+			if err := deps.Sessions.TouchLastSeen(r.Context(), session.ID, now, idleExpiresAt); err != nil {
+				logger.FromContext(r.Context()).Warn("session_touch_failed", "error", err)
+			}
+
+			ctx := context.WithValue(r.Context(), currentSessionKey{}, &CurrentSession{
+				Session:     session,
+				User:        current.User,
+				Roles:       current.Roles,
+				MFAEnrolled: current.MFAEnrolled,
+			})
+			logger.SetUserID(ctx, string(current.User.ID))
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// preSessionCSRF verifies the double-submit token and its Redis digest.
+func preSessionCSRF(store csrf.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if store == nil {
+				WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
+					"csrf storage is unavailable")
+				return
+			}
+			header := r.Header.Get("X-CSRF-Token")
+			cookie, err := r.Cookie(csrfCookieName)
+			if err != nil || !csrf.Equal(header, cookie.Value) {
+				WriteProblem(w, r, http.StatusForbidden, domain.CodeCSRFInvalid,
+					"csrf token is missing or invalid")
+				return
+			}
+			ok, err := csrf.Verify(r.Context(), store, header)
+			if err != nil {
+				logger.FromContext(r.Context()).Error("csrf_verify_failed", "error", err)
+				WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
+					"csrf storage is unavailable")
+				return
+			}
+			if !ok {
+				WriteProblem(w, r, http.StatusForbidden, domain.CodeCSRFInvalid,
+					"csrf token is missing or invalid")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// sessionCSRF binds the header token to the current session row.
+func sessionCSRF(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		current := SessionFromContext(r.Context())
+		if current == nil || current.Session == nil {
+			WriteProblem(w, r, http.StatusUnauthorized, domain.CodeSessionExpired,
+				"session is missing or expired")
+			return
+		}
+		header := r.Header.Get("X-CSRF-Token")
+		cookie, err := r.Cookie(csrfCookieName)
+		if err != nil || !csrf.Equal(header, cookie.Value) ||
+			!csrf.MatchesHash(header, current.Session.CSRFTokenHash) {
+			WriteProblem(w, r, http.StatusForbidden, domain.CodeCSRFInvalid,
+				"csrf token is missing or invalid")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// originAllowed rejects state-changing auth requests whose Origin/Referer is
+// absent or not configured.
+func originAllowed(cfg *config.Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				next.ServeHTTP(w, r)
+				return
+			}
+			origin := requestOrigin(r)
+			if origin == "" {
+				WriteProblem(w, r, http.StatusForbidden, domain.CodeForbidden,
+					"origin or referer is required")
+				return
+			}
+			if !cfg.OriginAllowed(origin) {
+				WriteProblem(w, r, http.StatusForbidden, domain.CodeForbidden,
+					"origin is not allowed")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func requestOrigin(r *http.Request) string {
+	if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" {
+		return origin
+	}
+	referer := strings.TrimSpace(r.Header.Get("Referer"))
+	if referer == "" {
+		return ""
+	}
+	u, err := url.Parse(referer)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
 }
 
 // RealmResolver extracts {realm} from /realms/{realm}/... and falls back to the

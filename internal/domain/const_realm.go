@@ -37,20 +37,35 @@ const (
 
 // Email token purposes.
 const (
-	EmailTokenVerify = "verify"
-	EmailTokenReset  = "reset"
-	EmailTokenInvite = "invite"
+	EmailTokenVerify EmailTokenPurpose = "verify"
+	EmailTokenReset  EmailTokenPurpose = "reset"
+	EmailTokenInvite EmailTokenPurpose = "invite"
 )
 
-// Audit actor types and outbox states.
+// Audit actor types.
 const (
 	ActorTypeUser   = "user"
 	ActorTypeAdmin  = "admin"
 	ActorTypeClient = "client"
 	ActorTypeSystem = "system"
+)
 
-	OutboxStatusPending    = "pending"
-	OutboxStatusProcessing = "processing"
-	OutboxStatusSent       = "sent"
-	OutboxStatusFailed     = "failed"
+// Audit event types written in M2.
+const (
+	AuditLoginSuccess      = "auth.login.success"
+	AuditLoginFailure      = "auth.login.failure"
+	AuditLogout            = "auth.logout"
+	AuditPasswordReset     = "auth.password.reset"
+	AuditPasswordChanged   = "auth.password.changed"
+	AuditInviteAccepted    = "auth.invite.accepted"
+	AuditEmailVerified     = "auth.email.verified"
+	AuditSessionRevoked    = "auth.session.revoked"
+	AuditPasswordRequested = "auth.password.reset_requested"
+)
+
+// Outbox event types written in M2.
+const (
+	OutboxEmailInvite = "email.invite"
+	OutboxEmailVerify = "email.verify"
+	OutboxEmailReset  = "email.reset"
 )

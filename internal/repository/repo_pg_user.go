@@ -11,6 +11,10 @@ import (
 const userColumns = `id::text, realm_id::text, email, username, name, given_name,
 	family_name, locale, email_verified_at, disabled_at, created_at, updated_at`
 
+const userColumnsQualified = `u.id::text, u.realm_id::text, u.email, u.username,
+	u.name, u.given_name, u.family_name, u.locale, u.email_verified_at,
+	u.disabled_at, u.created_at, u.updated_at`
+
 // PgUserRepository stores users.
 type PgUserRepository struct {
 	pool *pgxpool.Pool
@@ -41,6 +45,29 @@ func (r *PgUserRepository) GetByEmail(ctx context.Context, realmID domain.RealmI
 	return r.getOne(ctx, `SELECT `+userColumns+`
 		FROM "user" WHERE realm_id = $1::text::uuid AND lower(email) = lower($2)`,
 		string(realmID), email)
+}
+
+func (r *PgUserRepository) UpdateProfile(ctx context.Context, user *domain.User) error {
+	err := r.pool.QueryRow(ctx, `
+		UPDATE "user"
+		SET name = $2, given_name = $3, family_name = $4, locale = $5,
+			updated_at = now()
+		WHERE id = $1::text::uuid
+		RETURNING updated_at`,
+		string(user.ID), user.Name, user.GivenName, user.FamilyName,
+		nullString(user.Locale),
+	).Scan(&user.UpdatedAt)
+	return mapError(err)
+}
+
+func (r *PgUserRepository) MFAEnrolled(ctx context.Context, userID domain.UserID) (bool, error) {
+	var enrolled bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM mfa_totp
+			WHERE user_id = $1::text::uuid AND confirmed_at IS NOT NULL
+		)`, string(userID)).Scan(&enrolled)
+	return enrolled, mapError(err)
 }
 
 func (r *PgUserRepository) ListByRealm(ctx context.Context, realmID domain.RealmID, limit, offset int) ([]domain.User, error) {
