@@ -6,7 +6,8 @@ Self-hosted SSO service. M1 ships the Go backend, the operations foundation, and
 a Vue 3 SPA shell that proves the frontend stack against the live API. M2 adds
 password login, sessions, invite, reset, and the email outbox. M3 adds the OIDC
 provider, so a relying party can run a PKCE authorization code flow, refresh
-tokens, read userinfo, and log out. The admin console arrives in M4.
+tokens, read userinfo, and log out. M4 adds TOTP MFA, forced admin enrollment,
+and the admin user API. The admin console arrives separately.
 
 The SPA login and consent screens for the OIDC redirect are owned separately
 (M3-14). The backend flow is complete and testable with curl.
@@ -86,8 +87,50 @@ of this milestone; the API is complete and testable with curl.
 | `POST` | `/api/v1/me/password` | Change the password, revoke other sessions |
 | `GET` | `/api/v1/me/sessions` | List active sessions |
 | `DELETE` | `/api/v1/me/sessions/{id}` | Revoke one owned session |
+| `POST` | `/api/v1/auth/mfa/verify` | Finish login with a TOTP or recovery code |
+| `POST` | `/api/v1/auth/mfa/enroll` | Start or confirm forced admin TOTP enrollment |
+| `POST` | `/api/v1/me/mfa/totp` | Start or confirm TOTP enrollment |
+| `DELETE` | `/api/v1/me/mfa/totp` | Remove TOTP and its recovery codes |
+| `POST` | `/api/v1/me/mfa/recovery-codes` | Regenerate recovery codes once |
 
-MFA endpoints return 501 until M4.
+### MFA
+
+A user with a confirmed TOTP secret gets no session from `POST
+/api/v1/auth/login`. The response is `{"status":"mfa_required"}` with an
+`mfa_token`. Complete it at `/api/v1/auth/mfa/verify` with either `code` or
+`recovery_code`. The challenge lives in Redis for five minutes and is destroyed
+after five failures. A successful challenge creates the session with
+`amr=["pwd","otp"]` and `acr="urn:itprj:sso:acr:mfa"`.
+
+A `platform-admin` without a confirmed TOTP gets a restricted session and
+`{"status":"mfa_enrollment_required"}`. That session may read its own session,
+enroll TOTP, and log out. Every admin route returns 403 until enrollment
+completes and the session's `acr` becomes `mfa`.
+
+`action=start` returns the secret and `otpauth://` URI once. Scan it, then send
+`action=confirm` with the current six-digit code. Confirmation returns ten
+recovery codes once; the database stores only SHA-256 hashes. TOTP uses a
+30-second step with a ±1 window and rejects a reused time step.
+
+### Admin users
+
+All `/api/v1/users` routes require a `platform-admin` session with a completed
+MFA challenge. Errors use `application/problem+json`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/users` | Keyset list with `after`, `limit`, `q`, and `status` |
+| `POST` | `/api/v1/users` | Create an invite-only user, optional `Idempotency-Key` |
+| `GET` | `/api/v1/users/{id}` | User with roles, groups, MFA status, and session count |
+| `PATCH` | `/api/v1/users/{id}` | Update profile or disable a user |
+| `POST` | `/api/v1/users/{id}/reset-password` | Queue a reset email, 202 |
+| `POST` | `/api/v1/users/{id}/invite` | Resend the invite, 202 |
+| `POST` | `/api/v1/users/{id}/roles` | Replace the user's roles |
+
+Disabling a user revokes every session and refresh token. The last active
+`platform-admin` in a realm cannot be disabled or lose the role. A replayed
+`Idempotency-Key` returns the stored 201 response; reusing it with a different
+body returns `409 idempotency_mismatch`.
 
 ### Cookies and CSRF
 
