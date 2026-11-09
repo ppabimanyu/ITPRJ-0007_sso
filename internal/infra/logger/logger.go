@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/ppa/itprj-0007-sso/internal/infra/tracing"
 )
@@ -17,7 +18,54 @@ const (
 	requestIDKey contextKey = iota
 	userIDKey
 	baseLoggerKey
+	requestStateKey
 )
+
+// RequestState is the mutable per-request field set. Middleware downstream of
+// Logger sets the authenticated user here so the single access log line, which
+// runs after the handler returns, can include it.
+type RequestState struct {
+	mu     sync.RWMutex
+	userID string
+}
+
+// NewRequestState returns an empty state holder.
+func NewRequestState() *RequestState {
+	return &RequestState{}
+}
+
+// SetUserID records the authenticated user for later access logging.
+func (s *RequestState) SetUserID(id string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.userID = id
+	s.mu.Unlock()
+}
+
+// UserID returns the recorded user ID.
+func (s *RequestState) UserID() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.userID
+}
+
+// WithRequestState scopes a mutable state holder to one request.
+func WithRequestState(ctx context.Context, state *RequestState) context.Context {
+	return context.WithValue(ctx, requestStateKey, state)
+}
+
+// SetUserID records the authenticated user in the context value and in the
+// request state, when one is present.
+func SetUserID(ctx context.Context, id string) {
+	if state, ok := ctx.Value(requestStateKey).(*RequestState); ok {
+		state.SetUserID(id)
+	}
+}
 
 // New returns a JSON logger writing to stdout at the given level.
 func New(level string) *slog.Logger {
@@ -79,10 +127,17 @@ func RequestID(ctx context.Context) string {
 	return id
 }
 
-// UserID returns the authenticated user ID stored in ctx.
+// UserID returns the authenticated user ID stored in ctx. SessionAuth updates
+// the request state, and the context value is kept for handlers that captured
+// an earlier context.
 func UserID(ctx context.Context) string {
-	id, _ := ctx.Value(userIDKey).(string)
-	return id
+	if id, _ := ctx.Value(userIDKey).(string); id != "" {
+		return id
+	}
+	if state, ok := ctx.Value(requestStateKey).(*RequestState); ok {
+		return state.UserID()
+	}
+	return ""
 }
 
 func parseLevel(level string) slog.Level {

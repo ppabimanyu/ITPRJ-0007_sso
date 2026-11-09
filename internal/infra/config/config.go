@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/mail"
 	"net/netip"
 	"net/url"
 	"os"
@@ -16,19 +17,35 @@ import (
 
 // Config is the fully validated runtime configuration.
 type Config struct {
-	AppEnv     string
-	HTTP       HTTPConfig
-	Log        LogConfig
-	Metrics    MetricsConfig
-	Database   DatabaseConfig
-	Redis      RedisConfig
-	MasterKeys MasterKeyConfig
-	Proxies    ProxyConfig
+	AppEnv         string
+	HTTP           HTTPConfig
+	Log            LogConfig
+	Metrics        MetricsConfig
+	Database       DatabaseConfig
+	Redis          RedisConfig
+	MasterKeys     MasterKeyConfig
+	Proxies        ProxyConfig
+	AllowedOrigins []string
+	Password       PasswordConfig
+	SMTP           SMTPConfig
 }
 
 type HTTPConfig struct {
 	Addr        string
 	ExternalURL string
+}
+
+type PasswordConfig struct {
+	MinLength int
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	From     string
+	Username string
+	Password string
+	TLS      bool
 }
 
 type LogConfig struct {
@@ -158,6 +175,30 @@ func Parse(getenv func(string) string) (*Config, error) {
 		fail("TRUSTED_PROXY_CIDRS: %v", proxyErr)
 	}
 
+	origins, originErr := parseOrigins(getenv("ALLOWED_ORIGINS"), externalURL, appEnv)
+	if originErr != nil {
+		fail("ALLOWED_ORIGINS: %v", originErr)
+	}
+
+	passwordMin, passwordErr := parsePasswordMin(getenv("PASSWORD_MIN_LENGTH"))
+	if passwordErr != nil {
+		fail("PASSWORD_MIN_LENGTH: %v", passwordErr)
+	}
+
+	smtpHost := valueOr(getenv, "SMTP_HOST", "localhost")
+	smtpPort := valueOr(getenv, "SMTP_PORT", "1025")
+	if err := validatePort(smtpPort); err != nil {
+		fail("SMTP_PORT: %v", err)
+	}
+	smtpFrom := valueOr(getenv, "SMTP_FROM", "no-reply@example.com")
+	if _, err := mail.ParseAddress(smtpFrom); err != nil {
+		fail("SMTP_FROM: %v", err)
+	}
+	smtpTLS, err := parseBool(getenv("SMTP_TLS"))
+	if err != nil {
+		fail("SMTP_TLS: %v", err)
+	}
+
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
@@ -175,18 +216,126 @@ func Parse(getenv func(string) string) (*Config, error) {
 			Keys:  keys,
 			KeyID: keyID,
 		},
-		Proxies: ProxyConfig{TrustedCIDRs: proxies},
+		Proxies:        ProxyConfig{TrustedCIDRs: proxies},
+		AllowedOrigins: origins,
+		Password:       PasswordConfig{MinLength: passwordMin},
+		SMTP: SMTPConfig{
+			Host:     smtpHost,
+			Port:     smtpPort,
+			From:     smtpFrom,
+			Username: getenv("SMTP_USERNAME"),
+			Password: getenv("SMTP_PASSWORD"),
+			TLS:      smtpTLS,
+		},
 	}, nil
 }
 
 func (c *Config) IsProduction() bool { return c.AppEnv == "production" }
 func (c *Config) IsDev() bool        { return c.AppEnv == "dev" }
 
+// OriginAllowed reports an exact scheme and host match.
+func (c *Config) OriginAllowed(origin string) bool {
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	if origin == "" {
+		return false
+	}
+	for _, allowed := range c.AllowedOrigins {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
+// SessionCookieName uses the __Host- prefix outside dev.
+func (c *Config) SessionCookieName() string {
+	if c.IsDev() {
+		return "sso_session"
+	}
+	return "__Host-sso_session"
+}
+
+// SessionCookieSecure is false only for the HTTP dev stack.
+func (c *Config) SessionCookieSecure() bool { return !c.IsDev() }
+
 func valueOr(getenv func(string) string, key, fallback string) string {
 	if v := getenv(key); v != "" {
 		return v
 	}
 	return fallback
+}
+
+func parseOrigins(raw, externalURL, appEnv string) ([]string, error) {
+	candidates := []string{}
+	if strings.TrimSpace(raw) != "" {
+		candidates = append(candidates, strings.Split(raw, ",")...)
+	} else {
+		candidates = append(candidates, externalURL)
+		if appEnv == "dev" {
+			candidates = append(candidates, "http://localhost:5173")
+		}
+	}
+	origins := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		origin, err := normalizeOrigin(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[origin]; ok {
+			continue
+		}
+		seen[origin] = struct{}{}
+		origins = append(origins, origin)
+	}
+	if len(origins) == 0 {
+		return nil, errors.New("at least one origin is required")
+	}
+	return origins, nil
+}
+
+func normalizeOrigin(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid origin %q: %w", raw, err)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("origin %q must be an absolute http or https URL", raw)
+	}
+	if u.Path != "" && u.Path != "/" {
+		return "", fmt.Errorf("origin %q must not contain a path", raw)
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host), nil
+}
+
+func parsePasswordMin(raw string) (int, error) {
+	if raw == "" {
+		return 12, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("must be an integer: %w", err)
+	}
+	if n < 12 || n > 64 {
+		return 0, fmt.Errorf("must be between 12 and 64, got %d", n)
+	}
+	return n, nil
+}
+
+func validatePort(raw string) error {
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 65535 {
+		return fmt.Errorf("invalid port %q", raw)
+	}
+	return nil
+}
+
+func parseBool(raw string) (bool, error) {
+	if raw == "" {
+		return false, nil
+	}
+	return strconv.ParseBool(raw)
 }
 
 func validateAddr(addr string) error {

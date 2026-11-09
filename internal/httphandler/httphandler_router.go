@@ -16,21 +16,34 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
 	"github.com/ppa/itprj-0007-sso/internal/infra/tracing"
+	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
 	"github.com/ppa/itprj-0007-sso/internal/webui"
 )
 
-// Deps is the wiring passed from cmd/server. Handlers only see domain ports in
-// later milestones; M1 needs the health dependencies directly.
+// Deps is the wiring passed from cmd/server. Handlers see domain ports only.
 type Deps struct {
-	Config  *config.Config
-	DB      *database.DB
-	Redis   *redis.Client
-	Logger  *slog.Logger
-	Version domain.VersionInfo
+	Config      *config.Config
+	DB          *database.DB
+	Redis       *redis.Client
+	Logger      *slog.Logger
+	Version     domain.VersionInfo
+	Realms      domain.RealmRepository
+	Users       domain.UserRepository
+	Credentials domain.CredentialRepository
+	Sessions    domain.SessionRepository
+	Roles       domain.RoleRepository
+	EmailTokens domain.EmailTokenRepository
+	Audit       domain.AuditRepository
+	CSRFStore   csrf.Store
+	RateLimit   domain.RateLimitRepository
+}
+
+type handlers struct {
+	deps Deps
 }
 
 // NewRouter builds the global middleware chain in the order fixed by
-// ARCHITECTURE §4 and mounts the M1 routes.
+// ARCHITECTURE §4 and mounts the M1 and M2 routes.
 func NewRouter(deps Deps) http.Handler {
 	router := chi.NewRouter()
 	router.Use(RequestID)
@@ -40,13 +53,48 @@ func NewRouter(deps Deps) http.Handler {
 	router.Use(SecurityHeaders(deps.Config.IsProduction()))
 	router.Use(BodyLimit)
 	router.Use(Logger(deps.Logger))
-	router.Use(RateLimit)
 	router.Use(RealmResolver)
+
+	h := &handlers{deps: deps}
 
 	router.Get("/healthz", healthz)
 	router.Get("/readyz", readyz(deps))
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Get("/version", version(deps.Version))
+
+		r.Group(func(auth chi.Router) {
+			auth.Use(originAllowed(deps.Config))
+			auth.Get("/auth/csrf", h.csrfToken)
+
+			auth.Group(func(pre chi.Router) {
+				pre.Use(preSessionCSRF(deps.CSRFStore))
+				pre.Post("/auth/login", h.login)
+				pre.Post("/auth/forgot-password", h.forgotPassword)
+				pre.Post("/auth/reset-password", h.resetPassword)
+				pre.Post("/auth/verify-email", h.verifyEmail)
+				pre.Post("/auth/accept-invite", h.acceptInvite)
+				pre.Post("/auth/mfa/verify", h.notImplemented)
+			})
+
+			auth.Group(func(session chi.Router) {
+				session.Use(SessionAuth(deps))
+				session.Get("/auth/session", h.sessionInfo)
+				session.With(sessionCSRF).Post("/auth/logout", h.logout)
+				session.With(sessionCSRF).Post("/auth/mfa/enroll", h.notImplemented)
+			})
+		})
+
+		r.Group(func(me chi.Router) {
+			me.Use(SessionAuth(deps))
+			me.Get("/me", h.getMe)
+			me.With(sessionCSRF).Patch("/me", h.updateMe)
+			me.With(sessionCSRF).Post("/me/password", h.changePassword)
+			me.Get("/me/sessions", h.listMySessions)
+			me.With(sessionCSRF).Delete("/me/sessions/{id}", h.revokeMySession)
+			me.With(sessionCSRF).Post("/me/mfa/totp", h.notImplemented)
+			me.With(sessionCSRF).Delete("/me/mfa/totp", h.notImplemented)
+			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.notImplemented)
+		})
 	})
 
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
