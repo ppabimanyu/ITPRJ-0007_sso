@@ -18,10 +18,8 @@
     "@tanstack/vue-query": "^5.107.1",
     "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "cn": "^0.5.2",
     "reka-ui": "^2.11.0",
-    "tailwind-merge": "^3.7.0",
     "vue": "^3.5.45",
     "vue-i18n": "^11.4.18",
     "vue-router": "^4.6.4"

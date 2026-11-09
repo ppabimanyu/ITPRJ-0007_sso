@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { reactive, watch } from 'vue'
 
 import { Button } from '@/components/ui/button'
-import { DialogPanel } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -54,68 +54,71 @@ async function submit() {
 </script>
 
 <template>
-  <DialogPanel
+  <Dialog
     :open="props.open"
-    :title="t('admin.roles.create.title')"
-    :description="t('admin.roles.create.description')"
-    :close-label="t('admin.common.close')"
     @update:open="emit('update:open', $event)"
   >
-    <form
-      class="space-y-4"
-      novalidate
-      @submit.prevent="submit"
-    >
-      <AdminProblem :error="error" />
-      <div class="space-y-2">
-        <Label for="create-role-name">{{ t('admin.roles.create.name') }}</Label>
-        <Input
-          id="create-role-name"
-          v-model="form.name"
-          :aria-invalid="fields.name !== undefined"
-        />
-        <p class="text-xs text-muted-foreground">
-          {{ t('admin.roles.create.nameHint') }}
-        </p>
-        <p
-          v-if="fields.name"
-          role="alert"
-          class="text-sm text-destructive"
-        >
-          {{ fields.name }}
-        </p>
-      </div>
-      <div class="space-y-2">
-        <Label for="create-role-description">{{ t('admin.roles.create.descriptionLabel') }}</Label>
-        <Textarea
-          id="create-role-description"
-          v-model="form.description"
-          :aria-invalid="fields.description !== undefined"
-        />
-        <p
-          v-if="fields.description"
-          role="alert"
-          class="text-sm text-destructive"
-        >
-          {{ fields.description }}
-        </p>
-      </div>
-      <div class="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          :disabled="isPending"
-          @click="emit('update:open', false)"
-        >
-          {{ t('admin.common.cancel') }}
-        </Button>
-        <Button
-          type="submit"
-          :disabled="isPending"
-        >
-          {{ isPending ? t('admin.roles.create.submitting') : t('admin.roles.create.submit') }}
-        </Button>
-      </div>
-    </form>
-  </DialogPanel>
+    <DialogContent class="max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>{{ t('admin.roles.create.title') }}</DialogTitle>
+        <DialogDescription>{{ t('admin.roles.create.description') }}</DialogDescription>
+      </DialogHeader>
+      <form
+        class="space-y-4"
+        novalidate
+        @submit.prevent="submit"
+      >
+        <AdminProblem :error="error" />
+        <div class="space-y-2">
+          <Label for="create-role-name">{{ t('admin.roles.create.name') }}</Label>
+          <Input
+            id="create-role-name"
+            v-model="form.name"
+            :aria-invalid="fields.name !== undefined"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{ t('admin.roles.create.nameHint') }}
+          </p>
+          <p
+            v-if="fields.name"
+            role="alert"
+            class="text-sm text-destructive"
+          >
+            {{ fields.name }}
+          </p>
+        </div>
+        <div class="space-y-2">
+          <Label for="create-role-description">{{ t('admin.roles.create.descriptionLabel') }}</Label>
+          <Textarea
+            id="create-role-description"
+            v-model="form.description"
+            :aria-invalid="fields.description !== undefined"
+          />
+          <p
+            v-if="fields.description"
+            role="alert"
+            class="text-sm text-destructive"
+          >
+            {{ fields.description }}
+          </p>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="isPending"
+            @click="emit('update:open', false)"
+          >
+            {{ t('admin.common.cancel') }}
+          </Button>
+          <Button
+            type="submit"
+            :disabled="isPending"
+          >
+            {{ isPending ? t('admin.roles.create.submitting') : t('admin.roles.create.submit') }}
+          </Button>
+        </div>
+      </form>
+    </DialogContent>
+  </Dialog>
 </template>
