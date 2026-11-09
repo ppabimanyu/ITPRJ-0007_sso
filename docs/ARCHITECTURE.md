@@ -16,7 +16,7 @@ Dokumen ini menjelaskan bagaimana keputusan di PRD diterjemahkan menjadi struktu
 1. **Logika bisnis di handler.** `internal/domain` hanya berisi konstanta, DTO, model, dan interface. Tidak ada service layer.
 2. **Transaksi di repository.** Handler tidak membuka transaksi dan tidak menyentuh `pgx`. Operasi tulis atomik diekspos sebagai satu method repository bernama bisnis.
 3. **Postgres sumber kebenaran.** Sesi, token, consent, MFA, audit, dan outbox hidup di Postgres. Redis hanya cache dan state ephemeral.
-4. **Protokol di library, kebijakan di kita.** `zitadel/oidc/v3` menangani parsing/validasi OIDC; keputusan client, scope, consent, session, dan token tetap milik kode sendiri.
+4. **Protokol di tepi, kebijakan di kita.** Handler OIDC memakai `go-jose/v4` untuk JWT dan JWKS; konstanta wire diambil dari `zitadel/oidc/v3`. `op.Storage` tidak dipakai karena mengasumsikan OP memiliki redirect login/consent, sedangkan UI adalah SPA. Conformance suite menjadi gate rilis.
 5. **Satu binary, satu image.** SPA di-embed via `embed.FS`; server dan worker berjalan di proses yang sama pada v1.
 6. **Realm adalah batas keamanan.** Semua query dan method repository menerima `realm_id`; tidak ada lookup lintas realm.
 
@@ -440,12 +440,13 @@ Uji wajib khusus: Redis dimatikan (matriks degradasi), rotasi signing key, rotas
 |---|---|---|
 | ADR-001 | Tanpa service layer; logika di handler | Handler lebih tebal; duplikasi dikendalikan helper; test integration-first |
 | ADR-002 | Transaksi di repository, coarse-grained | Method repository lebih besar; nama berbasis operasi bisnis; review ketat |
-| ADR-003 | `zitadel/oidc/v3` | Lebih aman daripada hand-roll; `op.Storage` harus diimplementasikan |
+| ADR-003 | OIDC dengan `go-jose/v4`, bukan `op.Storage` | `zitadel/oidc` hanya untuk konstanta; handler dan conformance suite menanggung risiko protokol |
 | ADR-004 | Access token JWT + refresh opaque | Revocation access token tertunda ≤15 menit; introspection untuk instan |
 | ADR-005 | Issuer ber-prefix `/realms/{realm}` | Multi-realm tanpa migrasi issuer; URL lebih panjang |
 | ADR-006 | Login/consent di SPA | Satu sistem UI; butuh CORS dan ikatan auth request |
 | ADR-007 | Satu instance app di v1 | Sederhana; HA ditunda ke v1.1 |
 | ADR-008 | Idempotency di Postgres | Tidak bergantung Redis; satu tabel tambahan |
+| ADR-009 | Client display name ditambahkan di M4 | Tabel client mendapat `name`; API dan UI memakai nama, bukan `client_id` |
 
 ## 15. Checklist Scaffold M1
 

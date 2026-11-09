@@ -116,7 +116,7 @@ Secara eksplisit **tidak** dibangun di v1:
 ### Stack
 
 - **Backend:** Go, `chi` di atas `net/http`, `sqlc` + `pgx/v5`, `goose`.
-- **Protokol:** `zitadel/oidc/v3` untuk mekanik OIDC/OAuth2; `op.Storage` diimplementasikan sendiri.
+- **Protokol:** `go-jose/v4` untuk JWT/JWKS dan handler OIDC sendiri; konstanta wire dari `zitadel/oidc/v3`. Fallback ini dipakai karena `op.Storage` mengasumsikan OP memiliki redirect login/consent, sedangkan UI adalah SPA. Conformance suite menjadi gate rilis.
 - **Data:** PostgreSQL (sumber kebenaran), Redis (sesi cache, auth code, rate limit).
 - **Antarmuka:** SPA Vue 3 + Vite + shadcn-vue, di-embed ke binary via `embed.FS`.
 - **Email:** SMTP, outbox transaksional di Postgres + worker in-process.
@@ -514,7 +514,7 @@ Rincian task, estimasi jam, dependency, dan buffer ada di `docs/IMPLEMENTATION_P
 
 | Risiko | Dampak | Mitigasi |
 |---|---|---|
-| Bug protokol OIDC | RP tidak bisa login, celah keamanan | Pakai `zitadel/oidc`, conformance suite, e2e dengan RP nyata |
+| Bug protokol OIDC | RP tidak bisa login, celah keamanan | `go-jose` + handler sendiri, conformance suite, e2e dengan RP nyata |
 | Profil conformance mengharuskan fitur yang belum ada | Rilis M6 gagal | Verifikasi daftar test sebelum M3; naikkan `prompt=none`/`max_age` ke P0 (sudah dilakukan) |
 | Logika tersebar di handler | Duplikasi saat gRPC/Kafka masuk | Repository coarse-grained; ekstrak helper saat transport baru ditambahkan |
 | Transaksi di repository | Method repository membengkak | Nama method berbasis operasi bisnis, review wajib untuk perubahan skema tulis |
