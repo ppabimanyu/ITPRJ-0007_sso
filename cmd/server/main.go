@@ -83,6 +83,12 @@ func run() error {
 	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
 	adminUsers := repository.NewAdminUserRepository(db.Pool)
 	idempotency := repository.NewIdempotencyRepository(db.Pool)
+	adminClients := repository.NewAdminClientRepository(db.Pool)
+	adminRoles := repository.NewAdminRoleRepository(db.Pool)
+	groups := repository.NewGroupRepository(db.Pool)
+	adminSessions := repository.NewAdminSessionRepository(db.Pool)
+	adminAudit := repository.NewAdminAuditRepository(db.Pool)
+	realmSettings := repository.NewRealmSettingsRepository(db.Pool)
 
 	mailer := repository.NewSMTPSender(repository.SMTPSenderConfig{
 		Host:     cfg.SMTP.Host,
@@ -123,6 +129,12 @@ func run() error {
 		RefreshTokens: refreshTokens,
 		TokenState:    tokenState,
 		Outbox:        outbox,
+		AdminClients:  adminClients,
+		AdminRoles:    adminRoles,
+		Groups:        groups,
+		AdminSessions: adminSessions,
+		AdminAudit:    adminAudit,
+		RealmSettings: realmSettings,
 		Version: domain.VersionInfo{
 			Version:   version,
 			Commit:    commit,

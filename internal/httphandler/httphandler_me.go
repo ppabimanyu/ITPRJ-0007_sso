@@ -122,7 +122,7 @@ func (h *handlers) changePassword(w http.ResponseWriter, r *http.Request) {
 			"current password is incorrect")
 		return
 	}
-	policy := password.Policy{MinLength: h.deps.Config.Password.MinLength}
+	policy := h.realmPasswordPolicy(r.Context(), current.User.RealmID)
 	if err := policy.Validate(request.NewPassword, current.User.Email, current.User.Name); err != nil {
 		writePasswordPolicyProblem(w, r, err)
 		return

@@ -358,7 +358,11 @@ func SessionAuth(deps Deps) func(http.Handler) http.Handler {
 			}
 
 			admin := isAdmin(current.Roles)
-			idleExpiresAt := now.Add(sessionIdleTTL(admin, session.RememberMe))
+			idleTTL := session.IdleExpiresAt.Sub(session.LastSeenAt)
+			if idleTTL <= 0 {
+				idleTTL = sessionIdleTTL(admin, session.RememberMe)
+			}
+			idleExpiresAt := now.Add(idleTTL)
 			if idleExpiresAt.After(session.AbsoluteExpiresAt) {
 				idleExpiresAt = session.AbsoluteExpiresAt
 			}

@@ -242,7 +242,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 		loginStatus = domain.LoginStatusMFAEnrollmentRequired
 	}
 	remember := request.RememberMe && !admin
-	idleExpiresAt, absoluteExpiresAt := sessionWindow(now, admin, remember)
+	idleExpiresAt, absoluteExpiresAt := h.realmSessionWindow(r.Context(), realm.ID, now, admin, remember)
 	rawSession, sessionHash, err := csrf.NewToken()
 	if err != nil {
 		h.logInternal(r.Context(), "session_token_failed", err)

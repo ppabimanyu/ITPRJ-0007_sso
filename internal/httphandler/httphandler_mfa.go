@@ -201,7 +201,7 @@ func (h *handlers) createMFASession(w http.ResponseWriter, r *http.Request, user
 	now := nowUTC()
 	admin := isAdmin(roles)
 	remember := challenge.RememberMe && !admin
-	idleExpiresAt, absoluteExpiresAt := sessionWindow(now, admin, remember)
+	idleExpiresAt, absoluteExpiresAt := h.realmSessionWindow(r.Context(), user.RealmID, now, admin, remember)
 	rawSession, sessionHash, err := csrf.NewToken()
 	if err != nil {
 		return time.Time{}, err

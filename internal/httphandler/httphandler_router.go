@@ -52,6 +52,13 @@ type Deps struct {
 	RefreshTokens domain.RefreshTokenRepository
 	TokenState    domain.TokenStateRepository
 	Outbox        domain.OutboxRepository
+
+	AdminClients  domain.AdminClientRepository
+	AdminRoles    domain.AdminRoleRepository
+	Groups        domain.GroupRepository
+	AdminSessions domain.AdminSessionRepository
+	AdminAudit    domain.AdminAuditRepository
+	RealmSettings domain.RealmSettingsRepository
 }
 
 type handlers struct {
@@ -126,6 +133,33 @@ func NewRouter(deps Deps) http.Handler {
 			admin.With(sessionCSRF).Post("/users/{id}/reset-password", h.resetUserPassword)
 			admin.With(sessionCSRF).Post("/users/{id}/invite", h.resendUserInvite)
 			admin.With(sessionCSRF).Post("/users/{id}/roles", h.assignUserRoles)
+
+			admin.Get("/clients", h.listClients)
+			admin.With(sessionCSRF).Post("/clients", h.createClient)
+			admin.Get("/clients/{id}", h.getClient)
+			admin.With(sessionCSRF).Patch("/clients/{id}", h.updateClient)
+			admin.With(sessionCSRF).Delete("/clients/{id}", h.deleteClient)
+			admin.With(sessionCSRF).Post("/clients/{id}/rotate-secret", h.rotateClientSecret)
+
+			admin.Get("/roles", h.listRoles)
+			admin.With(sessionCSRF).Post("/roles", h.createRole)
+
+			admin.Get("/groups", h.listGroups)
+			admin.With(sessionCSRF).Post("/groups", h.createGroup)
+			admin.Get("/groups/{id}", h.getGroup)
+			admin.With(sessionCSRF).Patch("/groups/{id}", h.updateGroup)
+			admin.With(sessionCSRF).Delete("/groups/{id}", h.deleteGroup)
+			admin.Get("/groups/{id}/members", h.listGroupMembers)
+			admin.With(sessionCSRF).Post("/groups/{id}/members", h.addGroupMembers)
+			admin.With(sessionCSRF).Delete("/groups/{id}/members/{user_id}", h.removeGroupMember)
+
+			admin.Get("/sessions", h.listSessions)
+			admin.With(sessionCSRF).Delete("/sessions/{id}", h.revokeSession)
+
+			admin.Get("/audit", h.listAuditEvents)
+
+			admin.Get("/realm/settings", h.getRealmSettings)
+			admin.With(sessionCSRF).Patch("/realm/settings", h.updateRealmSettings)
 		})
 	})
 

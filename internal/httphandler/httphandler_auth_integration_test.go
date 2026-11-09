@@ -32,24 +32,29 @@ import (
 )
 
 type integration struct {
-	cfg      *config.Config
-	db       *database.DB
-	redis    *redis.Client
-	router   http.Handler
-	server   *httptest.Server
-	realms   *repository.PgRealmRepository
-	users    *repository.PgUserRepository
-	creds    *repository.PgCredentialRepository
-	sessions *repository.PgSessionRepository
-	roles    *repository.PgRoleRepository
-	tokens   *repository.PgEmailTokenRepository
-	outbox   *repository.PgOutboxRepository
-	clients  *repository.PgClientRepository
-	keys     *repository.PgSigningKeyRepository
-	refresh  *repository.PgRefreshTokenRepository
-	mfa      *repository.PgMFARepository
-	admin    *repository.PgAdminUserRepository
-	ring     *pkg.Keyring
+	cfg           *config.Config
+	db            *database.DB
+	redis         *redis.Client
+	router        http.Handler
+	server        *httptest.Server
+	realms        *repository.PgRealmRepository
+	users         *repository.PgUserRepository
+	creds         *repository.PgCredentialRepository
+	sessions      *repository.PgSessionRepository
+	roles         *repository.PgRoleRepository
+	tokens        *repository.PgEmailTokenRepository
+	outbox        *repository.PgOutboxRepository
+	clients       *repository.PgClientRepository
+	keys          *repository.PgSigningKeyRepository
+	refresh       *repository.PgRefreshTokenRepository
+	mfa           *repository.PgMFARepository
+	admin         *repository.PgAdminUserRepository
+	adminClients  *repository.PgAdminClientRepository
+	adminSessions *repository.PgAdminSessionRepository
+	adminAudit    *repository.PgAdminAuditRepository
+	groups        *repository.PgGroupRepository
+	realmSettings *repository.PgRealmSettingsRepository
+	ring          *pkg.Keyring
 }
 
 func newIntegration(t *testing.T) *integration {
@@ -118,6 +123,11 @@ func newIntegration(t *testing.T) *integration {
 	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
 	adminUsers := repository.NewAdminUserRepository(db.Pool)
 	idempotency := repository.NewIdempotencyRepository(db.Pool)
+	adminClients := repository.NewAdminClientRepository(db.Pool)
+	adminSessions := repository.NewAdminSessionRepository(db.Pool)
+	adminAudit := repository.NewAdminAuditRepository(db.Pool)
+	groups := repository.NewGroupRepository(db.Pool)
+	realmSettings := repository.NewRealmSettingsRepository(db.Pool)
 
 	router := NewRouter(Deps{
 		Config:        cfg,
@@ -146,6 +156,12 @@ func newIntegration(t *testing.T) *integration {
 		RefreshTokens: refresh,
 		TokenState:    tokenState,
 		Outbox:        outbox,
+		AdminClients:  adminClients,
+		AdminRoles:    repository.NewAdminRoleRepository(db.Pool),
+		Groups:        groups,
+		AdminSessions: adminSessions,
+		AdminAudit:    adminAudit,
+		RealmSettings: realmSettings,
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(func() {
@@ -157,7 +173,9 @@ func newIntegration(t *testing.T) *integration {
 		cfg: cfg, db: db, redis: redisClient, router: router,
 		server: server, realms: realms, users: users, creds: creds,
 		sessions: sessions, roles: roles, tokens: tokens, outbox: outbox,
-		clients: clients, keys: keys, refresh: refresh, mfa: mfa, admin: adminUsers, ring: ring,
+		clients: clients, keys: keys, refresh: refresh, mfa: mfa, admin: adminUsers,
+		adminClients: adminClients, adminSessions: adminSessions, adminAudit: adminAudit,
+		groups: groups, realmSettings: realmSettings, ring: ring,
 	}
 }
 

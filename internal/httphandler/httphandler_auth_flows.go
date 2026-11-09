@@ -145,7 +145,7 @@ func (h *handlers) resetPassword(w http.ResponseWriter, r *http.Request) {
 			"the server could not complete the request")
 		return
 	}
-	policy := password.Policy{MinLength: h.deps.Config.Password.MinLength}
+	policy := h.realmPasswordPolicy(r.Context(), realm.ID)
 	if err := policy.Validate(request.NewPassword, user.Email, user.Name); err != nil {
 		writePasswordPolicyProblem(w, r, err)
 		return
@@ -245,7 +245,7 @@ func (h *handlers) acceptInvite(w http.ResponseWriter, r *http.Request) {
 			"the server could not complete the request")
 		return
 	}
-	policy := password.Policy{MinLength: h.deps.Config.Password.MinLength}
+	policy := h.realmPasswordPolicy(r.Context(), realm.ID)
 	if err := policy.Validate(request.Password, user.Email, user.Name); err != nil {
 		writePasswordPolicyProblem(w, r, err)
 		return
