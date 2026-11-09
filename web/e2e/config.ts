@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
-export const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:8080'
+export const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:8091'
 
 export const authDir = path.join(here, '.auth')
 export const userStatePath = path.join(authDir, 'user.json')

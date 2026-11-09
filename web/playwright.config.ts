@@ -1,10 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { baseURL } from './e2e/config'
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 export default defineConfig({
   testDir: './e2e',
@@ -33,12 +29,4 @@ export default defineConfig({
       dependencies: ['setup'],
     },
   ],
-  webServer: {
-    command: 'bash scripts/e2e-stack.sh',
-    cwd: repoRoot,
-    url: 'http://localhost:8080/healthz',
-    timeout: 240_000,
-    reuseExistingServer: false,
-    gracefulShutdown: { signal: 'SIGTERM', timeout: 5_000 },
-  },
 })
