@@ -36,6 +36,15 @@ type Deps struct {
 	Audit       domain.AuditRepository
 	CSRFStore   csrf.Store
 	RateLimit   domain.RateLimitRepository
+
+	Clients       domain.ClientRepository
+	SigningKeys   domain.SigningKeyRepository
+	Tokens        domain.TokenIssuer
+	AuthRequests  domain.AuthRequestRepository
+	AuthCodes     domain.AuthCodeRepository
+	RefreshTokens domain.RefreshTokenRepository
+	TokenState    domain.TokenStateRepository
+	Outbox        domain.OutboxRepository
 }
 
 type handlers struct {
@@ -65,6 +74,7 @@ func NewRouter(deps Deps) http.Handler {
 		r.Group(func(auth chi.Router) {
 			auth.Use(originAllowed(deps.Config))
 			auth.Get("/auth/csrf", h.csrfToken)
+			auth.Get("/auth/authorize/request", h.authorizeRequestInfo)
 
 			auth.Group(func(pre chi.Router) {
 				pre.Use(preSessionCSRF(deps.CSRFStore))
@@ -80,6 +90,8 @@ func NewRouter(deps Deps) http.Handler {
 				session.Use(SessionAuth(deps))
 				session.Get("/auth/session", h.sessionInfo)
 				session.With(sessionCSRF).Post("/auth/logout", h.logout)
+				session.With(sessionCSRF).Post("/auth/authorize/complete", h.completeAuthorize)
+				session.With(sessionCSRF).Post("/auth/consent", h.grantConsent)
 				session.With(sessionCSRF).Post("/auth/mfa/enroll", h.notImplemented)
 			})
 		})
@@ -95,6 +107,24 @@ func NewRouter(deps Deps) http.Handler {
 			me.With(sessionCSRF).Delete("/me/mfa/totp", h.notImplemented)
 			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.notImplemented)
 		})
+	})
+
+	router.Route("/realms/{realm}", func(r chi.Router) {
+		r.Get("/.well-known/openid-configuration", h.discovery)
+		r.Get("/jwks", h.jwks)
+		r.Get("/authorize", h.authorize)
+		r.With(OIDCCORS(deps)).Post("/token", h.token)
+		r.With(OIDCCORS(deps)).Options("/token", preflight)
+		r.With(OIDCCORS(deps)).Get("/userinfo", h.userinfo)
+		r.With(OIDCCORS(deps)).Post("/userinfo", h.userinfo)
+		r.With(OIDCCORS(deps)).Options("/userinfo", preflight)
+		r.With(OIDCCORS(deps)).Post("/revoke", h.revoke)
+		r.With(OIDCCORS(deps)).Options("/revoke", preflight)
+		r.With(OIDCCORS(deps)).Post("/introspect", h.introspect)
+		r.With(OIDCCORS(deps)).Options("/introspect", preflight)
+		r.Get("/logout", h.oidcLogout)
+		r.Post("/logout", h.oidcLogout)
+		r.Post("/logout/backchannel", h.backchannelLogout)
 	})
 
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
