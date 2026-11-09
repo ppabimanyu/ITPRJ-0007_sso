@@ -63,3 +63,10 @@ func sessionIdleTTL(admin, remember bool) time.Duration {
 		return normalIdle
 	}
 }
+
+func (h *handlers) loginIPLimit() int {
+	if h.deps.Config != nil && h.deps.Config.RateLimit.LoginIPLimit > 0 {
+		return h.deps.Config.RateLimit.LoginIPLimit
+	}
+	return loginIPLimit
+}

@@ -24,6 +24,7 @@ export SSO_MASTER_KEYS="${SSO_MASTER_KEYS:-{\"dev-only\":\"FglevJnTk5aiM1Gmb5Epn
 export SSO_MASTER_KEY_ID="${SSO_MASTER_KEY_ID:-dev-only}"
 export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:${E2E_PORT},http://localhost:5173}"
 export PASSWORD_MIN_LENGTH=12
+export AUTH_LOGIN_IP_LIMIT="${AUTH_LOGIN_IP_LIMIT:-100}"
 export SMTP_HOST="${SMTP_HOST:-localhost}"
 export SMTP_PORT="${SMTP_PORT:-1025}"
 export SMTP_FROM="${SMTP_FROM:-no-reply@example.com}"

@@ -157,6 +157,23 @@ func TestSessionCookieProductionPrefix(t *testing.T) {
 	}
 }
 
+func TestParseAuthLoginIPLimit(t *testing.T) {
+	env := validEnv()
+	env["AUTH_LOGIN_IP_LIMIT"] = "25"
+	cfg, err := Parse(lookup(env))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.RateLimit.LoginIPLimit != 25 {
+		t.Fatalf("LoginIPLimit = %d, want 25", cfg.RateLimit.LoginIPLimit)
+	}
+
+	env["AUTH_LOGIN_IP_LIMIT"] = "0"
+	if _, err := Parse(lookup(env)); err == nil {
+		t.Fatal("expected an invalid AUTH_LOGIN_IP_LIMIT to fail")
+	}
+}
+
 func TestParseAuthOverrides(t *testing.T) {
 	env := validEnv()
 	env["ALLOWED_ORIGINS"] = "https://app.example.com, https://admin.example.com"

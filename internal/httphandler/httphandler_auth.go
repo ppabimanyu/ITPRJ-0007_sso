@@ -52,7 +52,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipDecision, err := h.deps.RateLimit.Allow(r.Context(), "login_ip", clientIP(r), loginIPLimit, loginIPWindow)
+	ipDecision, err := h.deps.RateLimit.Allow(r.Context(), "login_ip", clientIP(r), h.loginIPLimit(), loginIPWindow)
 	if err != nil {
 		h.logInternal(r.Context(), "rate_limit_failed", err)
 		WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,

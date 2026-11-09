@@ -27,6 +27,7 @@ type Config struct {
 	Proxies        ProxyConfig
 	AllowedOrigins []string
 	Password       PasswordConfig
+	RateLimit      RateLimitConfig
 	SMTP           SMTPConfig
 }
 
@@ -37,6 +38,11 @@ type HTTPConfig struct {
 
 type PasswordConfig struct {
 	MinLength int
+}
+
+// RateLimitConfig carries the deployment-tunable counters.
+type RateLimitConfig struct {
+	LoginIPLimit int
 }
 
 type SMTPConfig struct {
@@ -185,6 +191,16 @@ func Parse(getenv func(string) string) (*Config, error) {
 		fail("PASSWORD_MIN_LENGTH: %v", passwordErr)
 	}
 
+	loginIPLimit := 10
+	if raw := strings.TrimSpace(getenv("AUTH_LOGIN_IP_LIMIT")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 1000 {
+			fail("AUTH_LOGIN_IP_LIMIT must be between 1 and 1000")
+		} else {
+			loginIPLimit = parsed
+		}
+	}
+
 	smtpHost := valueOr(getenv, "SMTP_HOST", "localhost")
 	smtpPort := valueOr(getenv, "SMTP_PORT", "1025")
 	if err := validatePort(smtpPort); err != nil {
@@ -219,6 +235,7 @@ func Parse(getenv func(string) string) (*Config, error) {
 		Proxies:        ProxyConfig{TrustedCIDRs: proxies},
 		AllowedOrigins: origins,
 		Password:       PasswordConfig{MinLength: passwordMin},
+		RateLimit:      RateLimitConfig{LoginIPLimit: loginIPLimit},
 		SMTP: SMTPConfig{
 			Host:     smtpHost,
 			Port:     smtpPort,
