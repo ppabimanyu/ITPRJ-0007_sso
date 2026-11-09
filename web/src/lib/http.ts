@@ -69,6 +69,7 @@ export interface ApiRequest {
   method?: ApiMethod
   body?: unknown
   csrfToken?: string | null
+  headers?: Readonly<Record<string, string>>
   redirectOnSessionExpired?: boolean
   redirectOnMfaRequired?: boolean
 }
@@ -126,7 +127,10 @@ async function readProblem(response: Response): Promise<ApiError> {
 
 export async function apiFetch(path: string, options: ApiRequest = {}): Promise<unknown> {
   const method = options.method ?? 'GET'
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...options.headers,
+  }
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }

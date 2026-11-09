@@ -77,6 +77,7 @@ export async function preSessionFetch(path: string, body: unknown): Promise<unkn
 interface SessionWrite {
   method: 'POST' | 'PATCH' | 'DELETE'
   body?: unknown
+  headers?: Readonly<Record<string, string>>
 }
 
 export async function sessionFetch(path: string, options: SessionWrite): Promise<unknown> {
