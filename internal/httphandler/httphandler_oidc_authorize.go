@@ -246,7 +246,7 @@ func (h *handlers) issueAuthorizationCode(ctx context.Context, realmID domain.Re
 		UserID:         current.User.ID,
 		AuthTime:       current.Session.AuthTime,
 		AMR:            current.Session.AMR,
-		ACR:            sessionACR(current.Session.AMR),
+		ACR:            effectiveSessionACR(current.Session),
 		ExpiresAt:      now.Add(authCodeTTL),
 	}
 	if err := h.deps.AuthCodes.Put(ctx, pkg.SHA256Hex(rawCode), code); err != nil {

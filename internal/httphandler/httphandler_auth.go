@@ -194,8 +194,55 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	admin := isAdmin(roles)
+	if mfaEnrolled {
+		if h.deps.MFAChallenges == nil {
+			WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
+				"mfa storage is unavailable")
+			return
+		}
+		token, err := pkg.RandomToken(32)
+		if err != nil {
+			h.logInternal(r.Context(), "mfa_token_failed", err)
+			WriteProblem(w, r, http.StatusInternalServerError, domain.CodeInternal,
+				"the server could not complete the request")
+			return
+		}
+		challenge := &domain.MFAChallenge{
+			UserID:     user.ID,
+			RealmID:    realm.ID,
+			RequestID:  request.RequestID,
+			RememberMe: request.RememberMe,
+			ExpiresAt:  now.Add(mfaChallengeTTL),
+		}
+		if err := h.deps.MFAChallenges.Create(r.Context(), token, challenge); err != nil {
+			h.logInternal(r.Context(), "mfa_challenge_create_failed", err)
+			WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
+				"mfa storage is unavailable")
+			return
+		}
+		if h.deps.Audit != nil {
+			event := auditEvent(realm.ID, domain.ActorTypeUser, userActor(user.ID),
+				domain.AuditMFAChallengeCreated, nil)
+			if err := h.deps.Audit.Insert(r.Context(), event); err != nil {
+				logger.FromContext(r.Context()).Warn("audit_insert_failed", "error", err)
+			}
+		}
+		writeJSON(w, http.StatusOK, domain.LoginResponse{
+			Status:           domain.LoginStatusMFARequired,
+			MFAToken:         &token,
+			SessionExpiresAt: nil,
+			User:             nil,
+			RedirectTo:       nil,
+		})
+		return
+	}
+
+	loginStatus := domain.LoginStatusAuthenticated
+	if admin {
+		loginStatus = domain.LoginStatusMFAEnrollmentRequired
+	}
 	remember := request.RememberMe && !admin
-	idleExpiresAt, absoluteExpiresAt := sessionWindow(now, admin, remember)
+	idleExpiresAt, absoluteExpiresAt := h.realmSessionWindow(r.Context(), realm.ID, now, admin, remember)
 	rawSession, sessionHash, err := csrf.NewToken()
 	if err != nil {
 		h.logInternal(r.Context(), "session_token_failed", err)
@@ -220,6 +267,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 		IP:                clientIP(r),
 		UserAgent:         r.UserAgent(),
 		AMR:               []string{domain.AMRPassword},
+		ACR:               domain.ACRPassword,
 		AuthTime:          now,
 		LastSeenAt:        now,
 		RememberMe:        remember,
@@ -251,7 +299,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 
 	expires := absoluteExpiresAt
 	writeJSON(w, http.StatusOK, domain.LoginResponse{
-		Status:           domain.LoginStatusAuthenticated,
+		Status:           loginStatus,
 		SessionExpiresAt: &expires,
 		User:             ptrUserDTO(userDTO(user, roles, mfaEnrolled)),
 		RedirectTo:       nil,
@@ -292,11 +340,6 @@ func (h *handlers) logout(w http.ResponseWriter, r *http.Request) {
 	clearSessionCookie(w, h.deps.Config)
 	clearCSRFCookie(w, h.deps.Config)
 	writeNoContent(w)
-}
-
-func (h *handlers) notImplemented(w http.ResponseWriter, r *http.Request) {
-	WriteProblem(w, r, http.StatusNotImplemented, domain.CodeNotImplemented,
-		"this endpoint arrives with MFA in M4")
 }
 
 func (h *handlers) recordLoginFailure(r *http.Request, realm *domain.Realm, user *domain.User, reason string, locked bool) {

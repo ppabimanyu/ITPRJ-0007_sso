@@ -16,6 +16,7 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/config"
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
 	"github.com/ppa/itprj-0007-sso/internal/infra/tracing"
+	"github.com/ppa/itprj-0007-sso/internal/pkg"
 	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
 	"github.com/ppa/itprj-0007-sso/internal/webui"
 )
@@ -37,6 +38,12 @@ type Deps struct {
 	CSRFStore   csrf.Store
 	RateLimit   domain.RateLimitRepository
 
+	MFA           domain.MFARepository
+	MFAChallenges domain.MFAChallengeRepository
+	AdminUsers    domain.AdminUserRepository
+	Idempotency   domain.IdempotencyRepository
+	Keyring       *pkg.Keyring
+
 	Clients       domain.ClientRepository
 	SigningKeys   domain.SigningKeyRepository
 	Tokens        domain.TokenIssuer
@@ -45,6 +52,13 @@ type Deps struct {
 	RefreshTokens domain.RefreshTokenRepository
 	TokenState    domain.TokenStateRepository
 	Outbox        domain.OutboxRepository
+
+	AdminClients  domain.AdminClientRepository
+	AdminRoles    domain.AdminRoleRepository
+	Groups        domain.GroupRepository
+	AdminSessions domain.AdminSessionRepository
+	AdminAudit    domain.AdminAuditRepository
+	RealmSettings domain.RealmSettingsRepository
 }
 
 type handlers struct {
@@ -83,29 +97,69 @@ func NewRouter(deps Deps) http.Handler {
 				pre.Post("/auth/reset-password", h.resetPassword)
 				pre.Post("/auth/verify-email", h.verifyEmail)
 				pre.Post("/auth/accept-invite", h.acceptInvite)
-				pre.Post("/auth/mfa/verify", h.notImplemented)
+				pre.Post("/auth/mfa/verify", h.verifyMFA)
 			})
 
 			auth.Group(func(session chi.Router) {
 				session.Use(SessionAuth(deps))
 				session.Get("/auth/session", h.sessionInfo)
 				session.With(sessionCSRF).Post("/auth/logout", h.logout)
-				session.With(sessionCSRF).Post("/auth/authorize/complete", h.completeAuthorize)
-				session.With(sessionCSRF).Post("/auth/consent", h.grantConsent)
-				session.With(sessionCSRF).Post("/auth/mfa/enroll", h.notImplemented)
+				session.With(MFASatisfied(deps), sessionCSRF).Post("/auth/authorize/complete", h.completeAuthorize)
+				session.With(MFASatisfied(deps), sessionCSRF).Post("/auth/consent", h.grantConsent)
+				session.With(sessionCSRF).Post("/auth/mfa/enroll", h.enrollMFA)
 			})
 		})
 
 		r.Group(func(me chi.Router) {
 			me.Use(SessionAuth(deps))
+			me.Use(MFASatisfied(deps))
 			me.Get("/me", h.getMe)
 			me.With(sessionCSRF).Patch("/me", h.updateMe)
 			me.With(sessionCSRF).Post("/me/password", h.changePassword)
 			me.Get("/me/sessions", h.listMySessions)
 			me.With(sessionCSRF).Delete("/me/sessions/{id}", h.revokeMySession)
-			me.With(sessionCSRF).Post("/me/mfa/totp", h.notImplemented)
-			me.With(sessionCSRF).Delete("/me/mfa/totp", h.notImplemented)
-			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.notImplemented)
+			me.With(sessionCSRF).Post("/me/mfa/totp", h.enrollMFA)
+			me.With(sessionCSRF).Delete("/me/mfa/totp", h.deleteMyTOTP)
+			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.regenerateRecoveryCodes)
+		})
+
+		r.Group(func(admin chi.Router) {
+			admin.Use(SessionAuth(deps))
+			admin.Use(AdminOnly(deps))
+			admin.Get("/users", h.listUsers)
+			admin.With(sessionCSRF).Post("/users", h.createUser)
+			admin.Get("/users/{id}", h.getUser)
+			admin.With(sessionCSRF).Patch("/users/{id}", h.updateUser)
+			admin.With(sessionCSRF).Post("/users/{id}/reset-password", h.resetUserPassword)
+			admin.With(sessionCSRF).Post("/users/{id}/invite", h.resendUserInvite)
+			admin.With(sessionCSRF).Post("/users/{id}/roles", h.assignUserRoles)
+
+			admin.Get("/clients", h.listClients)
+			admin.With(sessionCSRF).Post("/clients", h.createClient)
+			admin.Get("/clients/{id}", h.getClient)
+			admin.With(sessionCSRF).Patch("/clients/{id}", h.updateClient)
+			admin.With(sessionCSRF).Delete("/clients/{id}", h.deleteClient)
+			admin.With(sessionCSRF).Post("/clients/{id}/rotate-secret", h.rotateClientSecret)
+
+			admin.Get("/roles", h.listRoles)
+			admin.With(sessionCSRF).Post("/roles", h.createRole)
+
+			admin.Get("/groups", h.listGroups)
+			admin.With(sessionCSRF).Post("/groups", h.createGroup)
+			admin.Get("/groups/{id}", h.getGroup)
+			admin.With(sessionCSRF).Patch("/groups/{id}", h.updateGroup)
+			admin.With(sessionCSRF).Delete("/groups/{id}", h.deleteGroup)
+			admin.Get("/groups/{id}/members", h.listGroupMembers)
+			admin.With(sessionCSRF).Post("/groups/{id}/members", h.addGroupMembers)
+			admin.With(sessionCSRF).Delete("/groups/{id}/members/{user_id}", h.removeGroupMember)
+
+			admin.Get("/sessions", h.listSessions)
+			admin.With(sessionCSRF).Delete("/sessions/{id}", h.revokeSession)
+
+			admin.Get("/audit", h.listAuditEvents)
+
+			admin.Get("/realm/settings", h.getRealmSettings)
+			admin.With(sessionCSRF).Patch("/realm/settings", h.updateRealmSettings)
 		})
 	})
 

@@ -79,6 +79,16 @@ func run() error {
 	tokenState := repository.NewTokenStateRepository(redisClient)
 	csrfStore := repository.NewCSRFStore(redisClient)
 	rateLimit := repository.NewRateLimitRepository(redisClient)
+	mfa := repository.NewMFARepository(db.Pool)
+	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
+	adminUsers := repository.NewAdminUserRepository(db.Pool)
+	idempotency := repository.NewIdempotencyRepository(db.Pool)
+	adminClients := repository.NewAdminClientRepository(db.Pool)
+	adminRoles := repository.NewAdminRoleRepository(db.Pool)
+	groups := repository.NewGroupRepository(db.Pool)
+	adminSessions := repository.NewAdminSessionRepository(db.Pool)
+	adminAudit := repository.NewAdminAuditRepository(db.Pool)
+	realmSettings := repository.NewRealmSettingsRepository(db.Pool)
 
 	mailer := repository.NewSMTPSender(repository.SMTPSenderConfig{
 		Host:     cfg.SMTP.Host,
@@ -90,6 +100,7 @@ func run() error {
 	})
 	worker := workerhandler.NewOutboxWorker(outbox, mailer, signingKeys,
 		repository.NewLogoutSender(), log)
+	worker.UseRealmMail(repository.NewSMTPSenderFactory(mailer, ring), realmSettings)
 	go worker.Run(ctx)
 
 	handler := httphandler.NewRouter(httphandler.Deps{
@@ -106,6 +117,11 @@ func run() error {
 		Audit:         audit,
 		CSRFStore:     csrfStore,
 		RateLimit:     rateLimit,
+		MFA:           mfa,
+		MFAChallenges: mfaChallenges,
+		AdminUsers:    adminUsers,
+		Idempotency:   idempotency,
+		Keyring:       ring,
 		Clients:       clients,
 		SigningKeys:   signingKeys,
 		Tokens:        signingKeys,
@@ -114,6 +130,12 @@ func run() error {
 		RefreshTokens: refreshTokens,
 		TokenState:    tokenState,
 		Outbox:        outbox,
+		AdminClients:  adminClients,
+		AdminRoles:    adminRoles,
+		Groups:        groups,
+		AdminSessions: adminSessions,
+		AdminAudit:    adminAudit,
+		RealmSettings: realmSettings,
 		Version: domain.VersionInfo{
 			Version:   version,
 			Commit:    commit,

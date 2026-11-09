@@ -51,13 +51,27 @@ export function notifySessionExpired() {
   sessionExpiredHandler?.()
 }
 
+type MfaRequiredHandler = () => void
+
+let mfaRequiredHandler: MfaRequiredHandler | null = null
+
+export function setMfaRequiredHandler(handler: MfaRequiredHandler | null) {
+  mfaRequiredHandler = handler
+}
+
+export function notifyMfaRequired() {
+  mfaRequiredHandler?.()
+}
+
 export type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
 export interface ApiRequest {
   method?: ApiMethod
   body?: unknown
   csrfToken?: string | null
+  headers?: Readonly<Record<string, string>>
   redirectOnSessionExpired?: boolean
+  redirectOnMfaRequired?: boolean
 }
 
 function parseFieldErrors(value: unknown): ProblemFieldError[] {
@@ -113,7 +127,10 @@ async function readProblem(response: Response): Promise<ApiError> {
 
 export async function apiFetch(path: string, options: ApiRequest = {}): Promise<unknown> {
   const method = options.method ?? 'GET'
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...options.headers,
+  }
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
@@ -136,6 +153,13 @@ export async function apiFetch(path: string, options: ApiRequest = {}): Promise<
       options.redirectOnSessionExpired !== false
     ) {
       notifySessionExpired()
+    }
+    if (
+      error.status === 403 &&
+      error.code === 'mfa_required' &&
+      options.redirectOnMfaRequired !== false
+    ) {
+      notifyMfaRequired()
     }
     throw error
   }

@@ -6,7 +6,8 @@ Self-hosted SSO service. M1 ships the Go backend, the operations foundation, and
 a Vue 3 SPA shell that proves the frontend stack against the live API. M2 adds
 password login, sessions, invite, reset, and the email outbox. M3 adds the OIDC
 provider, so a relying party can run a PKCE authorization code flow, refresh
-tokens, read userinfo, and log out. The admin console arrives in M4.
+tokens, read userinfo, and log out. M4 adds TOTP MFA, forced admin enrollment,
+and the admin user API. The admin console arrives separately.
 
 The SPA login and consent screens for the OIDC redirect are owned separately
 (M3-14). The backend flow is complete and testable with curl.
@@ -86,8 +87,108 @@ of this milestone; the API is complete and testable with curl.
 | `POST` | `/api/v1/me/password` | Change the password, revoke other sessions |
 | `GET` | `/api/v1/me/sessions` | List active sessions |
 | `DELETE` | `/api/v1/me/sessions/{id}` | Revoke one owned session |
+| `POST` | `/api/v1/auth/mfa/verify` | Finish login with a TOTP or recovery code |
+| `POST` | `/api/v1/auth/mfa/enroll` | Start or confirm forced admin TOTP enrollment |
+| `POST` | `/api/v1/me/mfa/totp` | Start or confirm TOTP enrollment |
+| `DELETE` | `/api/v1/me/mfa/totp` | Remove TOTP and its recovery codes |
+| `POST` | `/api/v1/me/mfa/recovery-codes` | Regenerate recovery codes once |
 
-MFA endpoints return 501 until M4.
+### MFA
+
+A user with a confirmed TOTP secret gets no session from `POST
+/api/v1/auth/login`. The response is `{"status":"mfa_required"}` with an
+`mfa_token`. Complete it at `/api/v1/auth/mfa/verify` with either `code` or
+`recovery_code`. The challenge lives in Redis for five minutes and is destroyed
+after five failures. A successful challenge creates the session with
+`amr=["pwd","otp"]` and `acr="urn:itprj:sso:acr:mfa"`.
+
+A `platform-admin` without a confirmed TOTP gets a restricted session and
+`{"status":"mfa_enrollment_required"}`. That session may read its own session,
+enroll TOTP, and log out. Every admin route returns 403 until enrollment
+completes and the session's `acr` becomes `mfa`.
+
+`action=start` returns the secret and `otpauth://` URI once. Scan it, then send
+`action=confirm` with the current six-digit code. Confirmation returns ten
+recovery codes once; the database stores only SHA-256 hashes. TOTP uses a
+30-second step with a ±1 window and rejects a reused time step.
+
+### Admin users
+
+All `/api/v1/users` routes require a `platform-admin` session with a completed
+MFA challenge. Errors use `application/problem+json`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/users` | Keyset list with `after`, `limit`, `q`, and `status` |
+| `POST` | `/api/v1/users` | Create an invite-only user, optional `Idempotency-Key` |
+| `GET` | `/api/v1/users/{id}` | User with roles, groups, MFA status, and session count |
+| `PATCH` | `/api/v1/users/{id}` | Update profile or disable a user |
+| `POST` | `/api/v1/users/{id}/reset-password` | Queue a reset email, 202 |
+| `POST` | `/api/v1/users/{id}/invite` | Resend the invite, 202 |
+| `POST` | `/api/v1/users/{id}/roles` | Replace the user's roles |
+
+Disabling a user revokes every session and refresh token. The last active
+`platform-admin` in a realm cannot be disabled or lose the role. A replayed
+`Idempotency-Key` returns the stored 201 response; reusing it with a different
+body returns `409 idempotency_mismatch`.
+
+### Admin resources
+
+The rest of the admin surface uses the same `platform-admin` plus completed
+MFA session. Writes need the session CSRF token, and create endpoints honor
+`Idempotency-Key`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/clients` | Keyset list with `after` and `limit` |
+| `POST` | `/api/v1/clients` | Create a client, optional `Idempotency-Key` |
+| `GET` | `/api/v1/clients/{id}` | Client detail without its secret |
+| `PATCH` | `/api/v1/clients/{id}` | Replace URI lists, origins, grants, scopes, TTLs, or disable |
+| `DELETE` | `/api/v1/clients/{id}` | Delete only without an active session or consent |
+| `POST` | `/api/v1/clients/{id}/rotate-secret` | Return a new confidential secret once |
+| `GET` | `/api/v1/roles` | List realm roles |
+| `POST` | `/api/v1/roles` | Create a role, optional `Idempotency-Key` |
+| `GET` | `/api/v1/groups` | List groups with member counts |
+| `POST` | `/api/v1/groups` | Create a group, optional `Idempotency-Key` |
+| `GET` | `/api/v1/groups/{id}` | Group detail |
+| `PATCH` | `/api/v1/groups/{id}` | Rename or change the description |
+| `DELETE` | `/api/v1/groups/{id}` | Delete a group and its membership |
+| `GET` | `/api/v1/groups/{id}/members` | List members |
+| `POST` | `/api/v1/groups/{id}/members` | Add users by `user_ids` |
+| `DELETE` | `/api/v1/groups/{id}/members/{user_id}` | Remove a member |
+| `GET` | `/api/v1/sessions` | List sessions with `user_id`, `status`, `after`, and `limit` |
+| `DELETE` | `/api/v1/sessions/{id}` | Revoke a session and its refresh family |
+| `GET` | `/api/v1/audit` | Filter by `from`, `to`, `type`, `actor_id`, `after`, and `limit` |
+| `GET` | `/api/v1/realm/settings` | Read SMTP, password, and session policy |
+| `PATCH` | `/api/v1/realm/settings` | Update the same settings |
+
+Confidential client secrets are generated on create and returned once. Rotation
+returns the new value once and revokes the previous hashes. Redirect URIs match
+exactly and must use HTTPS, except loopback HTTP in dev; wildcards are rejected.
+A backchannel URI must not resolve to a literal private or loopback address
+outside dev. Disabling a client revokes its refresh tokens. Sessions are
+user-wide rather than client-scoped, so a session shared with another client
+stays alive; delete stays blocked while a client has a consent row or a live
+refresh token.
+
+Groups are flat. Membership changes affect the next token, never one already
+issued. Audit metadata never contains passwords, tokens, secrets, or email
+addresses; the viewer shows user IDs and joins email separately when needed.
+
+### Realm SMTP
+
+`realm.settings` stores the password and session policy plus per-realm SMTP.
+SMTP passwords are encrypted with the active master key and are write-only: GET
+returns `password_set` and never the value. An empty `smtp.host` or
+`smtp.from_address`, or a realm with no settings, makes the outbox worker use
+the environment `SMTP_*` sender. Development can set MailHog explicitly:
+
+```sh
+curl -s -b cookies.txt -X PATCH \
+  -H "X-CSRF-Token: $SESSION_CSRF" -H 'Content-Type: application/json' \
+  -d '{"smtp":{"host":"localhost","port":1025,"from_address":"no-reply@example.com","use_tls":false,"password":"dev-only-smtp-password"}}' \
+  http://localhost:8080/api/v1/realm/settings
+```
 
 ### Cookies and CSRF
 

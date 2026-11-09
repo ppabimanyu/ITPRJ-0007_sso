@@ -5,6 +5,7 @@ const AUTH_PATHS = new Set([
   '/reset-password',
   '/accept-invite',
   '/verify-email',
+  '/mfa/enroll',
 ])
 
 export function isLocalRedirect(value: unknown): value is string {

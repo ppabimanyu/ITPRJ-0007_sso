@@ -4,7 +4,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { i18n } from './i18n'
 import { clearAuthCache } from './lib/auth-cache'
-import { setSessionExpiredHandler } from './lib/http'
+import { setMfaRequiredHandler, setSessionExpiredHandler } from './lib/http'
 import { queryClient } from './lib/query'
 import router from './router'
 import './styles/index.css'
@@ -17,6 +17,17 @@ setSessionExpiredHandler(() => {
   }
   void router.replace({
     name: 'login',
+    query: current.fullPath === '/' ? {} : { redirect: current.fullPath },
+  })
+})
+
+setMfaRequiredHandler(() => {
+  const current = router.currentRoute.value
+  if (current.name === 'login' || current.name === 'mfa-enroll') {
+    return
+  }
+  void router.replace({
+    name: 'mfa-enroll',
     query: current.fullPath === '/' ? {} : { redirect: current.fullPath },
   })
 })

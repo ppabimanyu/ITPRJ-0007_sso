@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 
 import { useSession } from '../auth/queries'
 import { useSignOut } from '../auth/use-sign-out'
+import MfaPanel from './MfaPanel.vue'
 import PasswordForm from './PasswordForm.vue'
 import ProfileForm from './ProfileForm.vue'
 import SessionPanel from './SessionPanel.vue'
@@ -79,6 +80,15 @@ const displayName = computed(() => {
     <Card>
       <CardContent class="pt-6">
         <PasswordForm />
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardContent class="pt-6">
+        <MfaPanel
+          :enrolled="session.user.mfaEnrolled"
+          :is-admin="session.isAdmin"
+        />
       </CardContent>
     </Card>
 
