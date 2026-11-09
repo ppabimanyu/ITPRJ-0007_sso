@@ -36,6 +36,7 @@ export default {
     login: {
       title: 'Masuk',
       description: 'Gunakan akun internal Anda untuk melanjutkan.',
+      requestDescription: 'Masuk untuk melanjutkan ke {client}.',
       email: 'Email',
       password: 'Kata sandi',
       remember: 'Ingat saya',
@@ -47,6 +48,38 @@ export default {
         'Masuk dengan verifikasi dua langkah belum tersedia pada milestone ini. Hubungi administrator.',
       noticeInvite: 'Kata sandi Anda sudah dibuat. Masuk untuk melanjutkan.',
       noticeReset: 'Kata sandi Anda sudah diatur ulang. Masuk dengan kata sandi baru.',
+    },
+    authorize: {
+      clientLabel: 'Aplikasi',
+      scopesLabel: 'Akses yang diminta',
+      loading: 'Memuat permintaan masuk…',
+      signedIn: 'Anda sudah masuk. Lanjutkan untuk menyelesaikan permintaan ini.',
+      continue: 'Lanjutkan',
+      continuing: 'Melanjutkan…',
+      completing: 'Menyelesaikan proses masuk…',
+      errorTitle: 'Permintaan masuk tidak tersedia',
+      errorDescription: 'Aplikasi ini tidak dapat memulai permintaan masuk yang valid.',
+      invalid:
+        'Permintaan masuk ini tidak lengkap. Mulai lagi dari aplikasi.',
+      expired:
+        'Permintaan masuk ini tidak valid atau sudah kedaluwarsa. Mulai lagi dari aplikasi.',
+      conflict:
+        'Permintaan masuk ini tidak dapat diselesaikan lagi. Mulai lagi dari aplikasi.',
+      sessionExpired:
+        'Sesi Anda berakhir sebelum permintaan selesai. Masuk kembali.',
+      home: 'Kembali ke beranda',
+    },
+    consent: {
+      title: 'Berikan akses',
+      description: 'Tinjau akses yang diminta {client} sebelum melanjutkan.',
+      genericDescription:
+        'Tinjau apa yang diminta aplikasi ini sebelum melanjutkan.',
+      redirecting: 'Mengalihkan ke halaman masuk…',
+      scopesNote:
+        'Memberikan akses akan menyelesaikan permintaan masuk dan mengembalikan Anda ke aplikasi.',
+      approve: 'Izinkan akses',
+      approving: 'Mengizinkan…',
+      cancel: 'Batal',
     },
     forgot: {
       title: 'Lupa kata sandi',
