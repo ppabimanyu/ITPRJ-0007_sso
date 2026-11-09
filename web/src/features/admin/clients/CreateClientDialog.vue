@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { DialogPanel } from '@/components/ui/dialog'
@@ -21,9 +21,18 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { mutateAsync: create, isPending, error } = useCreateClient()
+const { mutateAsync: create, isPending, error, reset } = useCreateClient()
 const { fieldErrors } = useAdminError()
 const fields = computed(() => fieldErrors(error.value))
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      reset()
+    }
+  },
+)
 
 async function submit(values: ClientFormValues) {
   try {

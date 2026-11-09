@@ -24,7 +24,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { mutateAsync: create, isPending, error: requestError } = useCreateUser()
+const { mutateAsync: create, isPending, error: requestError, reset } = useCreateUser()
 const { describe, fieldErrors } = useAdminError()
 
 const form = reactive({ email: '', name: '', username: '', sendInvite: true })
@@ -43,6 +43,7 @@ watch(
     form.sendInvite = true
     created.value = null
     idempotencyKey.value = ''
+    reset()
   },
 )
 
@@ -212,6 +213,14 @@ async function submit() {
           {{ isPending ? t('admin.users.create.submitting') : t('admin.users.create.submit') }}
         </Button>
       </div>
+
+      <p
+        v-if="idempotencyKey"
+        class="text-xs text-muted-foreground"
+      >
+        {{ t('admin.users.create.idempotencyKey') }}:
+        <code class="select-all break-all font-mono">{{ idempotencyKey }}</code>
+      </p>
     </form>
   </DialogPanel>
 </template>

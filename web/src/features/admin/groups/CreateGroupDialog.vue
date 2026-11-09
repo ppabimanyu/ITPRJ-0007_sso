@@ -21,7 +21,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { mutateAsync: create, isPending, error } = useCreateGroup()
+const { mutateAsync: create, isPending, error, reset } = useCreateGroup()
 const { fieldErrors } = useAdminError()
 const fields = computed(() => fieldErrors(error.value))
 const form = reactive({ name: '', description: '' })
@@ -34,6 +34,7 @@ watch(
     }
     form.name = ''
     form.description = ''
+    reset()
   },
 )
 

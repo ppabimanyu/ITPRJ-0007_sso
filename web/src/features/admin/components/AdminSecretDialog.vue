@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -21,6 +21,16 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const copied = ref(false)
 const copyFailed = ref(false)
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      copied.value = false
+      copyFailed.value = false
+    }
+  },
+)
 
 async function copy() {
   copyFailed.value = false
