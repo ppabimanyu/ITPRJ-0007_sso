@@ -342,11 +342,6 @@ func (h *handlers) logout(w http.ResponseWriter, r *http.Request) {
 	writeNoContent(w)
 }
 
-func (h *handlers) notImplemented(w http.ResponseWriter, r *http.Request) {
-	WriteProblem(w, r, http.StatusNotImplemented, domain.CodeNotImplemented,
-		"this endpoint arrives with MFA in M4")
-}
-
 func (h *handlers) recordLoginFailure(r *http.Request, realm *domain.Realm, user *domain.User, reason string, locked bool) {
 	if h.deps.Audit == nil {
 		return

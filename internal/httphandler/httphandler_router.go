@@ -40,6 +40,8 @@ type Deps struct {
 
 	MFA           domain.MFARepository
 	MFAChallenges domain.MFAChallengeRepository
+	AdminUsers    domain.AdminUserRepository
+	Idempotency   domain.IdempotencyRepository
 	Keyring       *pkg.Keyring
 
 	Clients       domain.ClientRepository
@@ -112,6 +114,18 @@ func NewRouter(deps Deps) http.Handler {
 			me.With(sessionCSRF).Post("/me/mfa/totp", h.enrollMFA)
 			me.With(sessionCSRF).Delete("/me/mfa/totp", h.deleteMyTOTP)
 			me.With(sessionCSRF).Post("/me/mfa/recovery-codes", h.regenerateRecoveryCodes)
+		})
+
+		r.Group(func(admin chi.Router) {
+			admin.Use(SessionAuth(deps))
+			admin.Use(AdminOnly(deps))
+			admin.Get("/users", h.listUsers)
+			admin.With(sessionCSRF).Post("/users", h.createUser)
+			admin.Get("/users/{id}", h.getUser)
+			admin.With(sessionCSRF).Patch("/users/{id}", h.updateUser)
+			admin.With(sessionCSRF).Post("/users/{id}/reset-password", h.resetUserPassword)
+			admin.With(sessionCSRF).Post("/users/{id}/invite", h.resendUserInvite)
+			admin.With(sessionCSRF).Post("/users/{id}/roles", h.assignUserRoles)
 		})
 	})
 

@@ -81,6 +81,8 @@ func run() error {
 	rateLimit := repository.NewRateLimitRepository(redisClient)
 	mfa := repository.NewMFARepository(db.Pool)
 	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
+	adminUsers := repository.NewAdminUserRepository(db.Pool)
+	idempotency := repository.NewIdempotencyRepository(db.Pool)
 
 	mailer := repository.NewSMTPSender(repository.SMTPSenderConfig{
 		Host:     cfg.SMTP.Host,
@@ -110,6 +112,8 @@ func run() error {
 		RateLimit:     rateLimit,
 		MFA:           mfa,
 		MFAChallenges: mfaChallenges,
+		AdminUsers:    adminUsers,
+		Idempotency:   idempotency,
 		Keyring:       ring,
 		Clients:       clients,
 		SigningKeys:   signingKeys,

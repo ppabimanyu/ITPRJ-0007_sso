@@ -48,6 +48,7 @@ type integration struct {
 	keys     *repository.PgSigningKeyRepository
 	refresh  *repository.PgRefreshTokenRepository
 	mfa      *repository.PgMFARepository
+	admin    *repository.PgAdminUserRepository
 	ring     *pkg.Keyring
 }
 
@@ -115,6 +116,8 @@ func newIntegration(t *testing.T) *integration {
 	tokenState := repository.NewTokenStateRepository(redisClient)
 	mfa := repository.NewMFARepository(db.Pool)
 	mfaChallenges := repository.NewMFAChallengeRepository(redisClient)
+	adminUsers := repository.NewAdminUserRepository(db.Pool)
+	idempotency := repository.NewIdempotencyRepository(db.Pool)
 
 	router := NewRouter(Deps{
 		Config:        cfg,
@@ -132,6 +135,8 @@ func newIntegration(t *testing.T) *integration {
 		RateLimit:     repository.NewRateLimitRepository(redisClient),
 		MFA:           mfa,
 		MFAChallenges: mfaChallenges,
+		AdminUsers:    adminUsers,
+		Idempotency:   idempotency,
 		Keyring:       ring,
 		Clients:       clients,
 		SigningKeys:   keys,
@@ -152,7 +157,7 @@ func newIntegration(t *testing.T) *integration {
 		cfg: cfg, db: db, redis: redisClient, router: router,
 		server: server, realms: realms, users: users, creds: creds,
 		sessions: sessions, roles: roles, tokens: tokens, outbox: outbox,
-		clients: clients, keys: keys, refresh: refresh, mfa: mfa, ring: ring,
+		clients: clients, keys: keys, refresh: refresh, mfa: mfa, admin: adminUsers, ring: ring,
 	}
 }
 
