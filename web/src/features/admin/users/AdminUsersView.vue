@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 import { listUsers } from '@/lib/admin/api'
@@ -47,6 +47,10 @@ const users = computed(() => data.value?.items ?? [])
 watch(status, () => {
   pager.reset()
 })
+
+function setStatus(value: unknown) {
+  status.value = value === 'all' ? '' : (value as UserStatus)
+}
 
 function applySearch() {
   appliedSearch.value = search.value.trim()
@@ -114,21 +118,29 @@ function statusVariant(value: 'active' | 'pending' | 'disabled'): 'destructive' 
               {{ t('admin.users.filters.status') }}
             </label>
             <Select
-              id="admin-user-status"
-              v-model="status"
+              :model-value="status === '' ? 'all' : status"
+              @update:model-value="setStatus"
             >
-              <option value="">
-                {{ t('admin.users.filters.allStatuses') }}
-              </option>
-              <option value="active">
-                {{ t('admin.users.status.active') }}
-              </option>
-              <option value="pending">
-                {{ t('admin.users.status.pending') }}
-              </option>
-              <option value="disabled">
-                {{ t('admin.users.status.disabled') }}
-              </option>
+              <SelectTrigger
+                id="admin-user-status"
+                class="w-full"
+              >
+                <SelectValue :placeholder="t('admin.users.filters.allStatuses')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {{ t('admin.users.filters.allStatuses') }}
+                </SelectItem>
+                <SelectItem value="active">
+                  {{ t('admin.users.status.active') }}
+                </SelectItem>
+                <SelectItem value="pending">
+                  {{ t('admin.users.status.pending') }}
+                </SelectItem>
+                <SelectItem value="disabled">
+                  {{ t('admin.users.status.disabled') }}
+                </SelectItem>
+              </SelectContent>
             </Select>
           </div>
           <Button

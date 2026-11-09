@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 import { listAdminSessions, listUsers } from '@/lib/admin/api'
@@ -54,6 +54,14 @@ const users = computed(() => usersQuery.data.value?.items ?? [])
 watch([userId, status], () => {
   pager.reset()
 })
+
+function setUserId(value: unknown) {
+  userId.value = String(value)
+}
+
+function setStatus(value: unknown) {
+  status.value = (value === 'all' ? '' : value) as SessionStatus
+}
 
 function sessionStatus(session: AdminSession): 'active' | 'revoked' | 'expired' {
   if (session.revokedAt !== null) {
@@ -105,19 +113,24 @@ async function revoke() {
               {{ t('admin.sessions.filters.user') }}
             </label>
             <Select
-              id="admin-session-user"
-              v-model="userId"
+              :model-value="userId"
+              @update:model-value="setUserId"
             >
-              <option value="">
-                {{ t('admin.sessions.filters.allUsers') }}
-              </option>
-              <option
-                v-for="user in users"
-                :key="user.id"
-                :value="user.id"
+              <SelectTrigger
+                id="admin-session-user"
+                class="w-full"
               >
-                {{ user.email }}
-              </option>
+                <SelectValue :placeholder="t('admin.sessions.filters.allUsers')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="user in users"
+                  :key="user.id"
+                  :value="user.id"
+                >
+                  {{ user.email }}
+                </SelectItem>
+              </SelectContent>
             </Select>
           </div>
           <div class="w-full space-y-2 sm:w-56">
@@ -128,21 +141,29 @@ async function revoke() {
               {{ t('admin.sessions.filters.status') }}
             </label>
             <Select
-              id="admin-session-status"
-              v-model="status"
+              :model-value="status === '' ? 'all' : status"
+              @update:model-value="setStatus"
             >
-              <option value="">
-                {{ t('admin.sessions.filters.allStatuses') }}
-              </option>
-              <option value="active">
-                {{ t('admin.sessions.status.active') }}
-              </option>
-              <option value="revoked">
-                {{ t('admin.sessions.status.revoked') }}
-              </option>
-              <option value="expired">
-                {{ t('admin.sessions.status.expired') }}
-              </option>
+              <SelectTrigger
+                id="admin-session-status"
+                class="w-full"
+              >
+                <SelectValue :placeholder="t('admin.sessions.filters.allStatuses')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {{ t('admin.sessions.filters.allStatuses') }}
+                </SelectItem>
+                <SelectItem value="active">
+                  {{ t('admin.sessions.status.active') }}
+                </SelectItem>
+                <SelectItem value="revoked">
+                  {{ t('admin.sessions.status.revoked') }}
+                </SelectItem>
+                <SelectItem value="expired">
+                  {{ t('admin.sessions.status.expired') }}
+                </SelectItem>
+              </SelectContent>
             </Select>
           </div>
         </div>

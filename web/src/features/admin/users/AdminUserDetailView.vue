@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 import { getUser, listRoles } from '@/lib/admin/api'
 import { adminKeys } from '@/lib/query-keys'
@@ -54,6 +54,10 @@ const resetMutation = useResetUserPassword()
 const inviteMutation = useResendUserInvite()
 
 const form = reactive({ name: '', locale: 'en' as 'en' | 'id' })
+
+function setLocale(value: unknown) {
+  form.locale = value === 'id' ? 'id' : 'en'
+}
 const selectedRoles = ref<string[]>([])
 const savedProfile = ref(false)
 const savedRoles = ref(false)
@@ -226,15 +230,23 @@ async function resendInvite() {
               <div class="space-y-2">
                 <Label for="admin-user-locale">{{ t('admin.users.detail.locale') }}</Label>
                 <Select
-                  id="admin-user-locale"
-                  v-model="form.locale"
+                  :model-value="form.locale"
+                  @update:model-value="setLocale"
                 >
-                  <option value="en">
-                    {{ t('admin.users.detail.localeEn') }}
-                  </option>
-                  <option value="id">
-                    {{ t('admin.users.detail.localeId') }}
-                  </option>
+                  <SelectTrigger
+                    id="admin-user-locale"
+                    class="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">
+                      {{ t('admin.users.detail.localeEn') }}
+                    </SelectItem>
+                    <SelectItem value="id">
+                      {{ t('admin.users.detail.localeId') }}
+                    </SelectItem>
+                  </SelectContent>
                 </Select>
                 <p
                   v-if="profileError('locale')"

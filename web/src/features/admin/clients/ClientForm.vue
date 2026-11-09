@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import type { AdminClient } from '@/lib/admin/types'
@@ -46,6 +46,10 @@ watch(
 
 function fieldError(name: string): string {
   return props.fieldErrors[name] ?? ''
+}
+
+function setType(value: unknown) {
+  form.type = value as ClientFormValues['type']
 }
 
 function submit() {
@@ -92,16 +96,24 @@ function submit() {
       <div class="space-y-2">
         <Label for="client-type">{{ t('admin.clients.form.type') }}</Label>
         <Select
-          id="client-type"
-          v-model="form.type"
+          :model-value="form.type"
           :disabled="!props.allowTypeChange"
+          @update:model-value="setType"
         >
-          <option value="public">
-            {{ t('admin.clients.type.public') }}
-          </option>
-          <option value="confidential">
-            {{ t('admin.clients.type.confidential') }}
-          </option>
+          <SelectTrigger
+            id="client-type"
+            class="w-full"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="public">
+              {{ t('admin.clients.type.public') }}
+            </SelectItem>
+            <SelectItem value="confidential">
+              {{ t('admin.clients.type.confidential') }}
+            </SelectItem>
+          </SelectContent>
         </Select>
         <p class="text-xs text-muted-foreground">
           {{ t('admin.clients.form.typeHint') }}

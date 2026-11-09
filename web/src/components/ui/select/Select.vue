@@ -1,25 +1,19 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
+import type { SelectRootEmits, SelectRootProps } from "reka-ui"
+import { SelectRoot, useForwardPropsEmits } from "reka-ui"
 
-import { cn } from '@/lib/utils'
+const props = defineProps<SelectRootProps>()
+const emits = defineEmits<SelectRootEmits>()
 
-const props = defineProps<{
-  class?: HTMLAttributes['class']
-}>()
-
-const model = defineModel<string>({ default: '' })
+const forwarded = useForwardPropsEmits(props, emits)
 </script>
 
 <template>
-  <select
-    v-model="model"
-    :class="
-      cn(
-        'flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
-        props.class,
-      )
-    "
+  <SelectRoot
+    v-slot="slotProps"
+    data-slot="select"
+    v-bind="forwarded"
   >
-    <slot />
-  </select>
+    <slot v-bind="slotProps" />
+  </SelectRoot>
 </template>

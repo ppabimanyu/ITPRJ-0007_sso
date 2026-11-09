@@ -14,9 +14,12 @@
     "e2e:install": "playwright install chromium"
   },
   "dependencies": {
+    "@lucide/vue": "^1.70.0",
     "@tanstack/vue-query": "^5.107.1",
+    "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cn": "^0.5.2",
     "reka-ui": "^2.11.0",
     "tailwind-merge": "^3.7.0",
     "vue": "^3.5.45",
