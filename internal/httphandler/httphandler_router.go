@@ -18,6 +18,7 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/tracing"
 	"github.com/ppa/itprj-0007-sso/internal/pkg"
 	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
+	"github.com/ppa/itprj-0007-sso/internal/pkg/password"
 	"github.com/ppa/itprj-0007-sso/internal/webui"
 )
 
@@ -37,6 +38,7 @@ type Deps struct {
 	Audit       domain.AuditRepository
 	CSRFStore   csrf.Store
 	RateLimit   domain.RateLimitRepository
+	Passwords   *password.Guard
 
 	MFA           domain.MFARepository
 	MFAChallenges domain.MFAChallengeRepository
@@ -80,15 +82,16 @@ func NewRouter(deps Deps) http.Handler {
 
 	h := &handlers{deps: deps}
 	authLimit := h.ipRateLimit(rateLimitPolicy{
-		scope: "auth_ip", limit: authIPLimit, window: authIPWindow,
-		mode: rateLimitProblem, failClosed: true,
+		scope: "auth_ip", limit: rateLimitOrDefault(deps.Config.RateLimit.AuthIPLimit, authIPLimit),
+		window: authIPWindow, mode: rateLimitProblem, failClosed: true,
 	})
 
 	router.Get("/healthz", healthz)
 	router.Get("/readyz", readyz(deps))
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Use(h.ipRateLimit(rateLimitPolicy{
-			scope: "api_ip", limit: apiIPLimit, window: apiIPWindow, mode: rateLimitProblem,
+			scope: "api_ip", limit: rateLimitOrDefault(deps.Config.RateLimit.APIIPLimit, apiIPLimit),
+			window: apiIPWindow, mode: rateLimitProblem,
 		}))
 		r.Get("/version", version(deps.Version))
 
@@ -175,8 +178,8 @@ func NewRouter(deps Deps) http.Handler {
 
 	router.Route("/realms/{realm}", func(r chi.Router) {
 		r.Use(h.ipRateLimit(rateLimitPolicy{
-			scope: "oidc_ip", limit: oidcIPLimit, window: oidcIPWindow,
-			mode: rateLimitOAuth, failClosed: true,
+			scope: "oidc_ip", limit: rateLimitOrDefault(deps.Config.RateLimit.OIDCIPLimit, oidcIPLimit),
+			window: oidcIPWindow, mode: rateLimitOAuth, failClosed: true,
 		}))
 		r.Get("/.well-known/openid-configuration", h.discovery)
 		r.Get("/jwks", h.jwks)

@@ -174,6 +174,23 @@ func TestParseAuthLoginIPLimit(t *testing.T) {
 	}
 }
 
+func TestParseArgon2Concurrency(t *testing.T) {
+	env := validEnv()
+	env["ARGON2_CONCURRENCY"] = "4"
+	cfg, err := Parse(lookup(env))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Argon2.Concurrency != 4 {
+		t.Fatalf("Argon2.Concurrency = %d, want 4", cfg.Argon2.Concurrency)
+	}
+
+	env["ARGON2_CONCURRENCY"] = "0"
+	if _, err := Parse(lookup(env)); err == nil {
+		t.Fatal("expected an invalid ARGON2_CONCURRENCY to fail")
+	}
+}
+
 func TestParseAuthOverrides(t *testing.T) {
 	env := validEnv()
 	env["ALLOWED_ORIGINS"] = "https://app.example.com, https://admin.example.com"

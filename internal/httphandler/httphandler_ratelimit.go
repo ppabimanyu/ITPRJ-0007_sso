@@ -35,6 +35,13 @@ type rateLimitPolicy struct {
 	failClosed bool
 }
 
+func rateLimitOrDefault(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
+}
+
 func (h *handlers) ipRateLimit(policy rateLimitPolicy) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

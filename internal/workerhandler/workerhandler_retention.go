@@ -86,8 +86,8 @@ func (w *RetentionWorker) sweep(ctx context.Context) {
 	logger.FromContext(ctx).Info("retention_cleanup",
 		"audit", stats.Audit,
 		"sessions", stats.Sessions,
-		"refresh_tokens", stats.RefreshTokens,
-		"email_tokens", stats.EmailTokens,
+		"refresh_rows", stats.RefreshTokens,
+		"email_rows", stats.EmailTokens,
 		"failed_outbox", stats.FailedOutbox,
 		"idempotency_keys", stats.IdempotencyKeys)
 }

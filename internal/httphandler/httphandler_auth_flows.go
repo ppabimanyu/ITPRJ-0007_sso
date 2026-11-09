@@ -277,7 +277,7 @@ func (h *handlers) acceptInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) hashNewPassword(w http.ResponseWriter, r *http.Request, plaintext string) (string, []byte, bool) {
-	hash, err := password.Hash(plaintext)
+	hash, err := h.hashPassword(r.Context(), plaintext)
 	if err != nil {
 		h.logInternal(r.Context(), "password_hash_failed", err)
 		WriteProblem(w, r, http.StatusInternalServerError, domain.CodeInternal,

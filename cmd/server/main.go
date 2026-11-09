@@ -19,6 +19,7 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/database"
 	"github.com/ppa/itprj-0007-sso/internal/infra/logger"
 	"github.com/ppa/itprj-0007-sso/internal/pkg"
+	"github.com/ppa/itprj-0007-sso/internal/pkg/password"
 	"github.com/ppa/itprj-0007-sso/internal/repository"
 	"github.com/ppa/itprj-0007-sso/internal/workerhandler"
 )
@@ -120,6 +121,7 @@ func run() error {
 		Audit:         audit,
 		CSRFStore:     csrfStore,
 		RateLimit:     rateLimit,
+		Passwords:     password.NewGuard(cfg.Argon2.Concurrency),
 		MFA:           mfa,
 		MFAChallenges: mfaChallenges,
 		AdminUsers:    adminUsers,

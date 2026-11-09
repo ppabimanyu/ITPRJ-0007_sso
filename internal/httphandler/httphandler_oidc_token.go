@@ -31,7 +31,7 @@ func (h *handlers) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.allowRate(w, r, rateLimitPolicy{
-		scope: "token_client", limit: tokenClientLimit, window: tokenClientWindow,
+		scope: "token_client", limit: h.tokenClientLimit(), window: tokenClientWindow,
 		mode: rateLimitOAuth, failClosed: true,
 	}, client.ClientID) {
 		return
