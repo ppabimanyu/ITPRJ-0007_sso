@@ -41,6 +41,29 @@ tags:
     description: Settings realm (SMTP, password, session).
 
 paths:
+  /api/v1/auth/csrf:
+    get:
+      operationId: getCsrfToken
+      tags: [Auth]
+      summary: Mengambil token CSRF pra-sesi
+      description: |
+        Menyetel cookie `sso_csrf` dan mengembalikan token yang sama. Dipanggil
+        sebelum login, forgot-password, reset-password, verify-email, dan
+        accept-invite.
+      security: []
+      responses:
+        '200':
+          description: Token CSRF pra-sesi.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+        default:
+          $ref: '#/components/responses/Internal'
+
   /api/v1/auth/login:
     post:
       operationId: login
@@ -1349,6 +1372,14 @@ components:
             properties:
               field: { type: string }
               message: { type: string }
+
+    CsrfToken:
+      type: object
+      required: [csrf_token]
+      properties:
+        csrf_token:
+          type: string
+          description: Token yang juga disetel pada cookie `sso_csrf`.
 
     LoginRequest:
       type: object

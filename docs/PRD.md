@@ -409,6 +409,7 @@ POST /realms/{realm}/logout/backchannel
 
 ```
 POST /api/v1/auth/login
+GET  /api/v1/auth/csrf
 POST /api/v1/auth/mfa/verify
 POST /api/v1/auth/mfa/enroll
 POST /api/v1/auth/consent
