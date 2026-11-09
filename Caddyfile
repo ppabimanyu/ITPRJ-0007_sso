@@ -1,0 +1,5 @@
+# Development reverse proxy. TLS is terminated outside this stack.
+:80 {
+	encode zstd gzip
+	reverse_proxy app:8080
+}

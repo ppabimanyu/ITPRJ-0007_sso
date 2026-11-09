@@ -56,9 +56,36 @@ type ProxyConfig struct {
 	TrustedCIDRs []netip.Prefix
 }
 
-// Load reads configuration from the process environment.
+// Load reads configuration from the process environment. A local .env file is
+// loaded first for developer convenience; existing environment variables win.
 func Load() (*Config, error) {
+	loadDotEnv(".env")
 	return Parse(os.Getenv)
+}
+
+// loadDotEnv reads simple KEY=value lines. It never overrides a variable that
+// is already set, and it silently ignores a missing file.
+func loadDotEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if key == "" || os.Getenv(key) != "" {
+			continue
+		}
+		_ = os.Setenv(key, value)
+	}
 }
 
 // Parse builds a Config from a lookup function so tests can avoid the process
