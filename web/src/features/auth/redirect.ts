@@ -1,5 +1,6 @@
 const AUTH_PATHS = new Set([
   '/login',
+  '/consent',
   '/forgot-password',
   '/reset-password',
   '/accept-invite',
