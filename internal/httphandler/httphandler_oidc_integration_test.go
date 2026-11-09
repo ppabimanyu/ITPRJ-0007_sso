@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -31,10 +30,13 @@ type oidcParams struct {
 
 func (it *integration) ensureSigningKey(t *testing.T, realm *domain.Realm) {
 	t.Helper()
-	if _, err := it.keys.GetActive(context.Background(), realm.ID); err == nil {
-		return
-	} else if !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("read active signing key: %v", err)
+	// The shared dev database may hold a key encrypted with a different master
+	// keyring. Tests need a key they can decrypt, so retire any active key first.
+	if _, err := it.db.Pool.Exec(context.Background(),
+		`UPDATE realm_signing_key SET active = false WHERE realm_id = $1::text::uuid AND active`,
+		string(realm.ID),
+	); err != nil {
+		t.Fatalf("retire existing signing keys: %v", err)
 	}
 	key, err := repository.GenerateSigningKey(it.ring, realm.ID)
 	if err != nil {
