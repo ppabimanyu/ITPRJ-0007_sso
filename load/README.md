@@ -19,6 +19,7 @@ load run comes from one address.
 export E2E_PORT=8092
 export E2E_DB=load_$(date +%s)
 export AUTH_LOGIN_IP_LIMIT=1000000
+export AUTH_LOGIN_ACCOUNT_LIMIT=1000000
 export AUTH_IP_LIMIT=1000000
 export API_IP_LIMIT=1000000
 export OIDC_IP_LIMIT=1000000

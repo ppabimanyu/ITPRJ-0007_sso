@@ -8,13 +8,13 @@ import (
 )
 
 var (
-	apiIPLimit        = 300
+	apiIPLimit        = 3000
 	apiIPWindow       = time.Minute
-	authIPLimit       = 120
+	authIPLimit       = 600
 	authIPWindow      = time.Minute
-	oidcIPLimit       = 120
+	oidcIPLimit       = 600
 	oidcIPWindow      = time.Minute
-	tokenClientLimit  = 60
+	tokenClientLimit  = 6000
 	tokenClientWindow = time.Minute
 	forgotIPLimit     = 10
 	forgotIPWindow    = time.Minute

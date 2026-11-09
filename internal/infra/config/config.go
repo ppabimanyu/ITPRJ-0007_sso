@@ -210,19 +210,19 @@ func Parse(getenv func(string) string) (*Config, error) {
 	if err != nil {
 		fail("%v", err)
 	}
-	authIPLimit, err := parseLimit(getenv, "AUTH_IP_LIMIT", 120)
+	authIPLimit, err := parseLimit(getenv, "AUTH_IP_LIMIT", 600)
 	if err != nil {
 		fail("%v", err)
 	}
-	apiIPLimit, err := parseLimit(getenv, "API_IP_LIMIT", 300)
+	apiIPLimit, err := parseLimit(getenv, "API_IP_LIMIT", 3000)
 	if err != nil {
 		fail("%v", err)
 	}
-	oidcIPLimit, err := parseLimit(getenv, "OIDC_IP_LIMIT", 120)
+	oidcIPLimit, err := parseLimit(getenv, "OIDC_IP_LIMIT", 600)
 	if err != nil {
 		fail("%v", err)
 	}
-	tokenClientLimit, err := parseLimit(getenv, "TOKEN_CLIENT_LIMIT", 60)
+	tokenClientLimit, err := parseLimit(getenv, "TOKEN_CLIENT_LIMIT", 6000)
 	if err != nil {
 		fail("%v", err)
 	}

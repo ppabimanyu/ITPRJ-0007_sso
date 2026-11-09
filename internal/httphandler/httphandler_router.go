@@ -85,6 +85,10 @@ func NewRouter(deps Deps) http.Handler {
 		scope: "auth_ip", limit: rateLimitOrDefault(deps.Config.RateLimit.AuthIPLimit, authIPLimit),
 		window: authIPWindow, mode: rateLimitProblem, failClosed: true,
 	})
+	oidcLimit := h.ipRateLimit(rateLimitPolicy{
+		scope: "oidc_ip", limit: rateLimitOrDefault(deps.Config.RateLimit.OIDCIPLimit, oidcIPLimit),
+		window: oidcIPWindow, mode: rateLimitOAuth, failClosed: true,
+	})
 
 	router.Get("/healthz", healthz)
 	router.Get("/readyz", readyz(deps))
@@ -177,21 +181,17 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	router.Route("/realms/{realm}", func(r chi.Router) {
-		r.Use(h.ipRateLimit(rateLimitPolicy{
-			scope: "oidc_ip", limit: rateLimitOrDefault(deps.Config.RateLimit.OIDCIPLimit, oidcIPLimit),
-			window: oidcIPWindow, mode: rateLimitOAuth, failClosed: true,
-		}))
 		r.Get("/.well-known/openid-configuration", h.discovery)
 		r.Get("/jwks", h.jwks)
-		r.Get("/authorize", h.authorize)
-		r.With(OIDCCORS(deps)).Post("/token", h.token)
+		r.With(oidcLimit).Get("/authorize", h.authorize)
+		r.With(OIDCCORS(deps), oidcLimit).Post("/token", h.token)
 		r.With(OIDCCORS(deps)).Options("/token", preflight)
-		r.With(OIDCCORS(deps)).Get("/userinfo", h.userinfo)
-		r.With(OIDCCORS(deps)).Post("/userinfo", h.userinfo)
+		r.With(OIDCCORS(deps), oidcLimit).Get("/userinfo", h.userinfo)
+		r.With(OIDCCORS(deps), oidcLimit).Post("/userinfo", h.userinfo)
 		r.With(OIDCCORS(deps)).Options("/userinfo", preflight)
-		r.With(OIDCCORS(deps)).Post("/revoke", h.revoke)
+		r.With(OIDCCORS(deps), oidcLimit).Post("/revoke", h.revoke)
 		r.With(OIDCCORS(deps)).Options("/revoke", preflight)
-		r.With(OIDCCORS(deps)).Post("/introspect", h.introspect)
+		r.With(OIDCCORS(deps), oidcLimit).Post("/introspect", h.introspect)
 		r.With(OIDCCORS(deps)).Options("/introspect", preflight)
 		r.Get("/logout", h.oidcLogout)
 		r.Post("/logout", h.oidcLogout)
@@ -231,6 +231,7 @@ func readyz(deps Deps) http.HandlerFunc {
 			"migrations": "ok",
 		}
 		ready := true
+		degraded := false
 
 		if err := deps.DB.Ping(ctx); err != nil {
 			checks["database"] = "error"
@@ -246,7 +247,7 @@ func readyz(deps Deps) http.HandlerFunc {
 		}
 		if err := caching.Ping(ctx, deps.Redis); err != nil {
 			checks["redis"] = "error"
-			ready = false
+			degraded = true
 		}
 
 		status := http.StatusOK
@@ -254,6 +255,8 @@ func readyz(deps Deps) http.HandlerFunc {
 		if !ready {
 			status = http.StatusServiceUnavailable
 			state = "unready"
+		} else if degraded {
+			state = "degraded"
 		}
 		writeJSON(w, status, map[string]any{"status": state, "checks": checks})
 	}

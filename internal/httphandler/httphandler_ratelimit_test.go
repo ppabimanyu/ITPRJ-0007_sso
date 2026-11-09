@@ -140,6 +140,21 @@ func TestAllowRateWithoutRepositoryHonorsFailMode(t *testing.T) {
 	}
 }
 
+func TestTokenRateKeyScopesPublicClientsByIP(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/realms/default/token", nil)
+	req.RemoteAddr = "203.0.113.9:1234"
+
+	public := &domain.Client{ClientID: "public-client", Type: domain.ClientTypePublic}
+	if got := tokenRateKey(public, req); got != "public-client|203.0.113.9" {
+		t.Fatalf("public key = %q", got)
+	}
+
+	confidential := &domain.Client{ClientID: "backend", Type: domain.ClientTypeConfidential}
+	if got := tokenRateKey(confidential, req); got != "backend" {
+		t.Fatalf("confidential key = %q", got)
+	}
+}
+
 func TestIPRateLimitKeysByClientIP(t *testing.T) {
 	repo := &fakeRateLimit{decision: domain.RateLimitDecision{Allowed: true}}
 	h := newRateHandlers(repo)

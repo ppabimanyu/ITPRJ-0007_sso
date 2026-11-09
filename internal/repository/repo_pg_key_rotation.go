@@ -49,7 +49,7 @@ type encryptedRow struct {
 }
 
 func reencryptSigningKeys(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (int, error) {
-	rows, err := tx.Query(ctx, `SELECT id::text, private_key_encrypted FROM realm_signing_key`)
+	rows, err := tx.Query(ctx, `SELECT id::text, private_key_encrypted FROM realm_signing_key FOR UPDATE`)
 	if err != nil {
 		return 0, fmt.Errorf("read signing keys: %w", err)
 	}
@@ -77,7 +77,7 @@ func reencryptSigningKeys(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (in
 }
 
 func reencryptSMTPPasswords(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (int, error) {
-	rows, err := tx.Query(ctx, `SELECT id::text, settings FROM realm`)
+	rows, err := tx.Query(ctx, `SELECT id::text, settings FROM realm FOR UPDATE`)
 	if err != nil {
 		return 0, fmt.Errorf("read realm settings: %w", err)
 	}
@@ -87,7 +87,7 @@ func reencryptSMTPPasswords(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (
 	}
 	count := 0
 	for _, item := range items {
-		next, changed, err := reencryptSettings(item.ciphertext, ring)
+		encoded, changed, err := reencryptSMTPPassword(item.ciphertext, ring)
 		if err != nil {
 			return count, fmt.Errorf("reencrypt realm settings %s: %w", item.id, err)
 		}
@@ -95,8 +95,10 @@ func reencryptSMTPPasswords(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (
 			continue
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE realm SET settings = $2::jsonb, updated_at = now()
-			WHERE id = $1::text::uuid`, item.id, next); err != nil {
+			UPDATE realm
+			SET settings = jsonb_set(settings, '{smtp,password_encrypted}', to_jsonb($2::text), true),
+				updated_at = now()
+			WHERE id = $1::text::uuid`, item.id, encoded); err != nil {
 			return count, fmt.Errorf("write realm settings %s: %w", item.id, err)
 		}
 		count++
@@ -105,7 +107,7 @@ func reencryptSMTPPasswords(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (
 }
 
 func reencryptMFASecrets(ctx context.Context, tx pgx.Tx, ring *pkg.Keyring) (int, error) {
-	rows, err := tx.Query(ctx, `SELECT user_id::text, secret_encrypted FROM mfa_totp`)
+	rows, err := tx.Query(ctx, `SELECT user_id::text, secret_encrypted FROM mfa_totp FOR UPDATE`)
 	if err != nil {
 		return 0, fmt.Errorf("read MFA secrets: %w", err)
 	}
@@ -164,33 +166,28 @@ func reencrypt(ring *pkg.Keyring, ciphertext []byte) ([]byte, bool, error) {
 	return next, true, nil
 }
 
-// reencryptSettings rewrites only the SMTP password field so unknown settings
-// survive the rotation.
-func reencryptSettings(raw []byte, ring *pkg.Keyring) ([]byte, bool, error) {
+// reencryptSMTPPassword returns the new base64 ciphertext so the caller can
+// update only that field and leave concurrent settings edits intact.
+func reencryptSMTPPassword(raw []byte, ring *pkg.Keyring) (string, bool, error) {
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, false, err
+		return "", false, err
 	}
 	smtp, ok := doc["smtp"].(map[string]any)
 	if !ok {
-		return raw, false, nil
+		return "", false, nil
 	}
 	encoded, ok := smtp["password_encrypted"].(string)
 	if !ok || encoded == "" {
-		return raw, false, nil
+		return "", false, nil
 	}
 	ciphertext, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return nil, false, err
+		return "", false, err
 	}
 	next, changed, err := reencrypt(ring, ciphertext)
 	if err != nil || !changed {
-		return raw, false, err
+		return "", false, err
 	}
-	smtp["password_encrypted"] = base64.StdEncoding.EncodeToString(next)
-	out, err := json.Marshal(doc)
-	if err != nil {
-		return nil, false, err
-	}
-	return out, true, nil
+	return base64.StdEncoding.EncodeToString(next), true, nil
 }

@@ -55,11 +55,7 @@ func (r *PgAdminAuditRepository) ListFiltered(ctx context.Context, realmID domai
 	args = append(args, limit+1)
 	query := `SELECT ae.id::text, ae.type, ae.actor_type, ae.actor_id, ae.metadata, ae.created_at, actor.email
 		FROM audit_event ae
-		LEFT JOIN "user" actor ON actor.id = CASE
-			WHEN ae.actor_type IN ('user', 'admin') AND ae.actor_id IS NOT NULL
-			THEN ae.actor_id::uuid
-			ELSE NULL
-		END
+		LEFT JOIN "user" actor ON actor.id::text = ae.actor_id AND ae.actor_type IN ('user', 'admin')
 		WHERE ` + strings.Join(clauses, " AND ") + `
 		ORDER BY ae.created_at DESC, ae.id DESC LIMIT $` + fmt.Sprint(len(args))
 
