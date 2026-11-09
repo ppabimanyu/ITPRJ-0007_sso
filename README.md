@@ -65,8 +65,13 @@ printf '%s\n' 'Dev-Only-Passw0rd!' | go run ./cmd/migration seed --password-stdi
 Both commands converge on the same state when rerun. Rotate the realm signing
 key with `go run ./cmd/migration rotate-key`. The command creates a new active
 RSA-3072 key and retires the old one after 24 hours, so tokens signed before the
-rotation keep verifying inside that window. `rotate-master-key` remains
-reserved for a later milestone.
+rotation keep verifying inside that window.
+
+Rotate the master key with `go run ./cmd/migration rotate-master-key`. Put the
+old and the new key in `SSO_MASTER_KEYS` and point `SSO_MASTER_KEY_ID` at the new
+key first. The command re-encrypts signing keys, realm SMTP passwords, and MFA
+secrets, skips rows already on the active key, and can run again safely. Remove
+the old key after it reports zero re-encrypted rows.
 
 ## Auth API (M2)
 
