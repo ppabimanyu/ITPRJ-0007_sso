@@ -7,11 +7,11 @@ bin/
 # The audit trail is session-local
 .audit/
 
-# Web build output; the placeholder in internal/webui/dist stays tracked
+# Web build output; only the placeholder in internal/webui/dist is tracked
 web/node_modules/
 web/dist/
 internal/webui/dist/*
-!internal/webui/dist/index.html
+!internal/webui/dist/.gitkeep
 
 # Editor and OS noise
 .DS_Store

@@ -33,13 +33,13 @@ bootstrap:
 	@test -n "$(EMAIL)" || (echo "EMAIL is required: EMAIL=admin@example.com make bootstrap" && exit 1)
 	go run ./cmd/migration bootstrap --email "$(EMAIL)" --password-stdin
 
-# The SPA owner fills web/; keep this target usable before then.
+# Build the SPA and embed it in the Go binary. Requires Node.js 22 or newer.
 web-build:
-	@if [ -f web/package.json ]; then \
-		cd web && npm ci && npm run build; \
-	else \
-		echo "web/package.json not found; SPA scaffold lands with the web owner"; \
-	fi
+	cd web && npm ci
+	cd web && npm run build
+	@find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete
+	@cp -R web/dist/. internal/webui/dist/
 
 clean:
 	rm -rf bin web/dist
+	@find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete
