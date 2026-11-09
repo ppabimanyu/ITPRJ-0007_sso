@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 import { getGroup, listGroupMembers, listUsers } from '@/lib/admin/api'
@@ -61,6 +61,10 @@ const form = reactive({ name: '', description: '' })
 const saved = ref(false)
 const confirmDelete = ref(false)
 const selectedUserId = ref('')
+
+function setSelectedUser(value: unknown) {
+  selectedUserId.value = String(value)
+}
 
 const group = computed(() => groupQuery.data.value ?? null)
 const members = computed(() => membersQuery.data.value ?? [])
@@ -247,19 +251,24 @@ async function removeGroup() {
             <div class="flex-1 space-y-2">
               <Label for="group-add-member">{{ t('admin.groups.detail.addMember') }}</Label>
               <Select
-                id="group-add-member"
-                v-model="selectedUserId"
+                :model-value="selectedUserId"
+                @update:model-value="setSelectedUser"
               >
-                <option value="">
-                  {{ t('admin.groups.detail.selectUser') }}
-                </option>
-                <option
-                  v-for="user in availableUsers"
-                  :key="user.id"
-                  :value="user.id"
+                <SelectTrigger
+                  id="group-add-member"
+                  class="w-full"
                 >
-                  {{ user.email }}
-                </option>
+                  <SelectValue :placeholder="t('admin.groups.detail.selectUser')" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="user in availableUsers"
+                    :key="user.id"
+                    :value="user.id"
+                  >
+                    {{ user.email }}
+                  </SelectItem>
+                </SelectContent>
               </Select>
             </div>
             <Button

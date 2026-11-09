@@ -2,7 +2,7 @@
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { DialogPanel } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { AdminClientWithSecret } from '@/lib/admin/types'
 
 import AdminProblem from '../components/AdminProblem.vue'
@@ -46,27 +46,29 @@ async function submit(values: ClientFormValues) {
 </script>
 
 <template>
-  <DialogPanel
+  <Dialog
     :open="props.open"
-    :title="t('admin.clients.create.title')"
-    :description="t('admin.clients.create.description')"
-    :close-label="t('admin.common.close')"
-    content-class="max-w-2xl"
     @update:open="emit('update:open', $event)"
   >
-    <div class="space-y-4">
-      <AdminProblem :error="error" />
-      <ClientForm
-        :initial="null"
-        :pending="isPending"
-        :field-errors="fields"
-        :submit-label="t('admin.clients.create.submit')"
-        :pending-label="t('admin.clients.create.submitting')"
-        :allow-type-change="true"
-        :show-disabled="false"
-        @submit="submit"
-        @cancel="emit('update:open', false)"
-      />
-    </div>
-  </DialogPanel>
+    <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>{{ t('admin.clients.create.title') }}</DialogTitle>
+        <DialogDescription>{{ t('admin.clients.create.description') }}</DialogDescription>
+      </DialogHeader>
+      <div class="space-y-4">
+        <AdminProblem :error="error" />
+        <ClientForm
+          :initial="null"
+          :pending="isPending"
+          :field-errors="fields"
+          :submit-label="t('admin.clients.create.submit')"
+          :pending-label="t('admin.clients.create.submitting')"
+          :allow-type-change="true"
+          :show-disabled="false"
+          @submit="submit"
+          @cancel="emit('update:open', false)"
+        />
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>

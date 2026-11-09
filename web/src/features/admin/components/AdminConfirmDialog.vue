@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { DialogPanel } from '@/components/ui/dialog'
 
 const props = defineProps<{
   open: boolean
@@ -23,30 +31,28 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <DialogPanel
+  <AlertDialog
     :open="props.open"
-    :title="props.title"
-    :description="props.description"
-    :close-label="t('admin.common.close')"
     @update:open="emit('update:open', $event)"
   >
-    <template #footer>
-      <Button
-        type="button"
-        variant="outline"
-        :disabled="props.pending"
-        @click="emit('update:open', false)"
-      >
-        {{ t('admin.common.cancel') }}
-      </Button>
-      <Button
-        type="button"
-        :variant="props.destructive ? 'destructive' : 'default'"
-        :disabled="props.pending"
-        @click="emit('confirm')"
-      >
-        {{ props.pending ? props.pendingLabel : props.confirmLabel }}
-      </Button>
-    </template>
-  </DialogPanel>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{ props.title }}</AlertDialogTitle>
+        <AlertDialogDescription>{{ props.description }}</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel :disabled="props.pending">
+          {{ t('admin.common.cancel') }}
+        </AlertDialogCancel>
+        <Button
+          type="button"
+          :variant="props.destructive ? 'destructive' : 'default'"
+          :disabled="props.pending"
+          @click="emit('confirm')"
+        >
+          {{ props.pending ? props.pendingLabel : props.confirmLabel }}
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>

@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { User } from '@/lib/auth-api'
 
 import { useUpdateProfile } from '../auth/queries'
@@ -43,6 +44,10 @@ const fields = computed(() => fieldErrors(error.value))
 
 function fieldError(name: string) {
   return fields.value[name] ?? ''
+}
+
+function setLocale(value: unknown) {
+  form.locale = value === 'id' ? 'id' : 'en'
 }
 
 async function submit() {
@@ -158,18 +163,25 @@ async function submit() {
 
       <div class="space-y-2">
         <Label for="profile-locale">{{ t('account.profile.locale') }}</Label>
-        <select
-          id="profile-locale"
-          v-model="form.locale"
-          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        <Select
+          :model-value="form.locale"
+          @update:model-value="setLocale"
         >
-          <option value="en">
-            {{ t('account.profile.localeEn') }}
-          </option>
-          <option value="id">
-            {{ t('account.profile.localeId') }}
-          </option>
-        </select>
+          <SelectTrigger
+            id="profile-locale"
+            class="w-full"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en">
+              {{ t('account.profile.localeEn') }}
+            </SelectItem>
+            <SelectItem value="id">
+              {{ t('account.profile.localeId') }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <p
           v-if="fieldError('locale')"
           role="alert"

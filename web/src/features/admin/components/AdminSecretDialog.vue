@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { DialogPanel } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const props = defineProps<{
   open: boolean
@@ -45,46 +45,49 @@ async function copy() {
 </script>
 
 <template>
-  <DialogPanel
+  <Dialog
     :open="props.open"
-    :title="props.title"
-    :description="props.description"
-    :close-label="t('admin.common.close')"
     @update:open="emit('update:open', $event)"
   >
-    <div class="space-y-4">
-      <Alert variant="destructive">
-        <AlertDescription>{{ props.warning }}</AlertDescription>
-      </Alert>
-      <div class="flex items-start gap-2">
-        <code
-          class="min-w-0 flex-1 select-all break-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm"
+    <DialogContent class="max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>{{ props.title }}</DialogTitle>
+        <DialogDescription>{{ props.description }}</DialogDescription>
+      </DialogHeader>
+      <div class="space-y-4">
+        <Alert variant="destructive">
+          <AlertDescription>{{ props.warning }}</AlertDescription>
+        </Alert>
+        <div class="flex items-start gap-2">
+          <code
+            class="min-w-0 flex-1 select-all break-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm"
+          >
+            {{ props.secret }}
+          </code>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            @click="copy"
+          >
+            {{ copied ? t('admin.common.copied') : t('admin.common.copy') }}
+          </Button>
+        </div>
+        <Alert
+          v-if="copyFailed"
+          variant="destructive"
         >
-          {{ props.secret }}
-        </code>
+          <AlertDescription>{{ t('admin.common.copyFailed') }}</AlertDescription>
+        </Alert>
+      </div>
+      <DialogFooter>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          @click="copy"
+          @click="emit('update:open', false)"
         >
-          {{ copied ? t('admin.common.copied') : t('admin.common.copy') }}
+          {{ t('admin.common.savedClose') }}
         </Button>
-      </div>
-      <Alert
-        v-if="copyFailed"
-        variant="destructive"
-      >
-        <AlertDescription>{{ t('admin.common.copyFailed') }}</AlertDescription>
-      </Alert>
-    </div>
-    <template #footer>
-      <Button
-        type="button"
-        @click="emit('update:open', false)"
-      >
-        {{ t('admin.common.savedClose') }}
-      </Button>
-    </template>
-  </DialogPanel>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>

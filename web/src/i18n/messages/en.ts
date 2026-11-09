@@ -225,6 +225,7 @@ export default {
     },
     mfa: {
       title: 'Two-step verification',
+      tabLabel: 'MFA',
       description: 'Protect your account with an authenticator app.',
       enabled: 'On',
       disabled: 'Off',
@@ -365,6 +366,8 @@ export default {
         sessions: 'Sessions',
         created: 'Created',
       },
+      mfaEnrolledHint: 'Signs in with an authenticator app.',
+      mfaNotEnrolledHint: 'No authenticator app linked yet.',
       create: {
         action: 'Create user',
         title: 'Create a user',
@@ -442,6 +445,7 @@ export default {
         status: 'Status',
         redirects: 'Redirect URIs',
         created: 'Created',
+        copyId: 'Copy client ID',
       },
       create: {
         action: 'Create client',

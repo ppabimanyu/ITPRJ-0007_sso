@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { isAppLocale, setLocale, type AppLocale } from '@/i18n'
 import { useSession } from '@/features/auth/queries'
 import { useSignOut } from '@/features/auth/use-sign-out'
@@ -17,13 +18,9 @@ const isAdmin = computed(() => session.value?.isAdmin === true)
 const navLinkClass =
   'rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
 
-function changeLocale(event: Event) {
-  const target = event.target
-  if (!(target instanceof HTMLSelectElement)) {
-    return
-  }
-  if (isAppLocale(target.value)) {
-    setLocale(target.value)
+function changeLocale(value: unknown) {
+  if (typeof value === 'string' && isAppLocale(value)) {
+    setLocale(value)
   }
 }
 
@@ -96,19 +93,25 @@ function currentLocale(): AppLocale {
           >
             {{ t('nav.language') }}
           </label>
-          <select
-            id="locale-switch"
-            :value="currentLocale()"
-            class="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            @change="changeLocale"
+          <Select
+            :model-value="currentLocale()"
+            @update:model-value="changeLocale"
           >
-            <option value="en">
-              EN
-            </option>
-            <option value="id">
-              ID
-            </option>
-          </select>
+            <SelectTrigger
+              id="locale-switch"
+              class="h-8 w-20 text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">
+                EN
+              </SelectItem>
+              <SelectItem value="id">
+                ID
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </nav>
       </div>
     </header>

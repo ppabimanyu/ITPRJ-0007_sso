@@ -8,9 +8,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 import { getUser, listRoles } from '@/lib/admin/api'
 import { adminKeys } from '@/lib/query-keys'
@@ -54,7 +55,23 @@ const resetMutation = useResetUserPassword()
 const inviteMutation = useResendUserInvite()
 
 const form = reactive({ name: '', locale: 'en' as 'en' | 'id' })
+
+function setLocale(value: unknown) {
+  form.locale = value === 'id' ? 'id' : 'en'
+}
+
 const selectedRoles = ref<string[]>([])
+
+function toggleRole(roleId: string, checked: boolean | 'indeterminate') {
+  if (checked) {
+    if (!selectedRoles.value.includes(roleId)) {
+      selectedRoles.value = [...selectedRoles.value, roleId]
+    }
+    return
+  }
+  selectedRoles.value = selectedRoles.value.filter((id) => id !== roleId)
+}
+
 const savedProfile = ref(false)
 const savedRoles = ref(false)
 const resetSent = ref(false)
@@ -226,15 +243,23 @@ async function resendInvite() {
               <div class="space-y-2">
                 <Label for="admin-user-locale">{{ t('admin.users.detail.locale') }}</Label>
                 <Select
-                  id="admin-user-locale"
-                  v-model="form.locale"
+                  :model-value="form.locale"
+                  @update:model-value="setLocale"
                 >
-                  <option value="en">
-                    {{ t('admin.users.detail.localeEn') }}
-                  </option>
-                  <option value="id">
-                    {{ t('admin.users.detail.localeId') }}
-                  </option>
+                  <SelectTrigger
+                    id="admin-user-locale"
+                    class="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">
+                      {{ t('admin.users.detail.localeEn') }}
+                    </SelectItem>
+                    <SelectItem value="id">
+                      {{ t('admin.users.detail.localeId') }}
+                    </SelectItem>
+                  </SelectContent>
                 </Select>
                 <p
                   v-if="profileError('locale')"
@@ -283,13 +308,12 @@ async function resendInvite() {
                 :key="role.id"
                 class="flex items-start gap-3 rounded-md border px-3 py-2"
               >
-                <input
+                <Checkbox
                   :id="`admin-role-${role.id}`"
-                  v-model="selectedRoles"
-                  type="checkbox"
-                  :value="role.id"
-                  class="mt-1 h-4 w-4 rounded border-input"
-                >
+                  :model-value="selectedRoles.includes(role.id)"
+                  class="mt-1"
+                  @update:model-value="(checked) => toggleRole(role.id, checked)"
+                />
                 <label
                   :for="`admin-role-${role.id}`"
                   class="flex-1 space-y-0.5"

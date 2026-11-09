@@ -6,6 +6,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { useSession } from '../auth/queries'
 import { useSignOut } from '../auth/use-sign-out'
@@ -71,32 +73,59 @@ const displayName = computed(() => {
       </Button>
     </div>
 
-    <Card>
-      <CardContent class="pt-6">
-        <ProfileForm :user="session.user" />
-      </CardContent>
-    </Card>
+    <Separator />
 
-    <Card>
-      <CardContent class="pt-6">
-        <PasswordForm />
-      </CardContent>
-    </Card>
+    <Tabs default-value="profile">
+      <TabsList class="w-full">
+        <TabsTrigger value="profile">
+          {{ t('account.profile.title') }}
+        </TabsTrigger>
+        <TabsTrigger value="password">
+          {{ t('account.password.title') }}
+        </TabsTrigger>
+        <TabsTrigger value="mfa">
+          {{ t('account.mfa.tabLabel') }}
+        </TabsTrigger>
+        <TabsTrigger value="sessions">
+          {{ t('account.sessions.title') }}
+        </TabsTrigger>
+      </TabsList>
 
-    <Card>
-      <CardContent class="pt-6">
-        <MfaPanel
-          :enrolled="session.user.mfaEnrolled"
-          :is-admin="session.isAdmin"
-        />
-      </CardContent>
-    </Card>
+      <TabsContent value="profile">
+        <Card>
+          <CardContent class="pt-6">
+            <ProfileForm :user="session.user" />
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-    <Card>
-      <CardContent class="pt-6">
-        <SessionPanel />
-      </CardContent>
-    </Card>
+      <TabsContent value="password">
+        <Card>
+          <CardContent class="pt-6">
+            <PasswordForm />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="mfa">
+        <Card>
+          <CardContent class="pt-6">
+            <MfaPanel
+              :enrolled="session.user.mfaEnrolled"
+              :is-admin="session.isAdmin"
+            />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="sessions">
+        <Card>
+          <CardContent class="pt-6">
+            <SessionPanel />
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
   </section>
 
   <section
