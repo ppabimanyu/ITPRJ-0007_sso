@@ -3,15 +3,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import {
   acceptInvite,
   changePassword,
+  confirmMfaEnrollment,
+  disableTotp,
   fetchSession,
   forgotPassword,
   listSessions,
   login,
   logout,
+  regenerateRecoveryCodes,
   resetPassword,
   revokeSession,
+  startMfaEnrollment,
   updateProfile,
   verifyEmail,
+  verifyMfa,
+  type MfaEnrollmentEndpoint,
 } from '@/lib/auth-api'
 import { clearAuthCache } from '@/lib/auth-cache'
 import { authKeys } from '@/lib/query-keys'
@@ -38,10 +44,53 @@ export function useLogin() {
   return useMutation({
     mutationFn: login,
     onSuccess: async (result) => {
-      if (result.status === 'authenticated') {
+      if (result.status !== 'mfa_required') {
         await reloadSession(queryClient)
       }
     },
+  })
+}
+
+export function useVerifyMfa() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: verifyMfa,
+    onSuccess: async () => {
+      await reloadSession(queryClient)
+    },
+  })
+}
+
+export function useStartMfaEnrollment() {
+  return useMutation({
+    mutationFn: (endpoint: MfaEnrollmentEndpoint) => startMfaEnrollment(endpoint),
+  })
+}
+
+export function useConfirmMfaEnrollment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { endpoint: MfaEnrollmentEndpoint; code: string }) =>
+      confirmMfaEnrollment(input.endpoint, input.code),
+    onSuccess: async () => {
+      await reloadSession(queryClient)
+    },
+  })
+}
+
+export function useDisableTotp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: disableTotp,
+    onSuccess: async () => {
+      await reloadSession(queryClient)
+    },
+  })
+}
+
+export function useRegenerateRecoveryCodes() {
+  return useMutation({
+    mutationFn: regenerateRecoveryCodes,
   })
 }
 

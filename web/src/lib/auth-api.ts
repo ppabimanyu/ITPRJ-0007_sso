@@ -67,7 +67,27 @@ export interface LoginInput {
   email: string
   password: string
   rememberMe: boolean
+  requestId?: string | null
 }
+
+export interface MfaEnrollmentStart {
+  action: 'start'
+  secret: string
+  otpauthUri: string
+}
+
+export interface MfaEnrollmentConfirm {
+  action: 'confirm'
+  recoveryCodes: string[]
+}
+
+export type MfaEnrollmentResult = MfaEnrollmentStart | MfaEnrollmentConfirm
+
+export type MfaEnrollmentEndpoint = '/api/v1/auth/mfa/enroll' | '/api/v1/me/mfa/totp'
+
+export type MfaVerifyInput =
+  | { mfaToken: string; code: string }
+  | { mfaToken: string; recoveryCode: string }
 
 export interface ProfileInput {
   name: string
@@ -79,6 +99,22 @@ export interface ProfileInput {
 export interface PasswordInput {
   currentPassword: string
   newPassword: string
+}
+
+function readStringArray(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key]
+  if (value === null || value === undefined) {
+    return []
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`SSO API field "${key}" is invalid`)
+  }
+  return value.map((item) => {
+    if (typeof item !== 'string') {
+      throw new Error(`SSO API field "${key}" is invalid`)
+    }
+    return item
+  })
 }
 
 function parseRoleRef(value: unknown): RoleRef {
@@ -147,6 +183,25 @@ export function parseLoginResult(value: unknown): LoginResult {
   }
 }
 
+export function parseMfaEnrollmentResult(value: unknown): MfaEnrollmentResult {
+  const record = requireRecord(value, 'MFA enrollment')
+  const action = requireString(record, 'action')
+  switch (action) {
+    case 'start': {
+      const secret = readNullableString(record, 'secret')
+      const otpauthUri = readNullableString(record, 'otpauth_uri')
+      if (secret === null || otpauthUri === null) {
+        throw new Error('SSO API started MFA enrollment without a secret')
+      }
+      return { action, secret, otpauthUri }
+    }
+    case 'confirm':
+      return { action, recoveryCodes: readStringArray(record, 'recovery_codes') }
+    default:
+      throw new Error(`SSO API returned an unknown MFA enrollment action "${action}"`)
+  }
+}
+
 export function parseSessionList(value: unknown): MeSession[] {
   const record = requireRecord(value, 'session list')
   return requireArray(record, 'items').map((item) => {
@@ -182,8 +237,56 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     email: input.email,
     password: input.password,
     remember_me: input.rememberMe,
+    ...(input.requestId ? { request_id: input.requestId } : {}),
   })
   return parseLoginResult(payload)
+}
+
+export async function verifyMfa(input: MfaVerifyInput): Promise<void> {
+  const body =
+    'recoveryCode' in input
+      ? { mfa_token: input.mfaToken, recovery_code: input.recoveryCode }
+      : { mfa_token: input.mfaToken, code: input.code }
+  await preSessionFetch('/api/v1/auth/mfa/verify', body)
+}
+
+export async function startMfaEnrollment(
+  endpoint: MfaEnrollmentEndpoint,
+): Promise<MfaEnrollmentStart> {
+  const payload = await sessionFetch(endpoint, {
+    method: 'POST',
+    body: { action: 'start' },
+  })
+  const result = parseMfaEnrollmentResult(payload)
+  if (result.action !== 'start') {
+    throw new Error('SSO API did not start MFA enrollment')
+  }
+  return result
+}
+
+export async function confirmMfaEnrollment(
+  endpoint: MfaEnrollmentEndpoint,
+  code: string,
+): Promise<MfaEnrollmentConfirm> {
+  const payload = await sessionFetch(endpoint, {
+    method: 'POST',
+    body: { action: 'confirm', code },
+  })
+  const result = parseMfaEnrollmentResult(payload)
+  if (result.action !== 'confirm') {
+    throw new Error('SSO API did not confirm MFA enrollment')
+  }
+  return result
+}
+
+export async function disableTotp(): Promise<void> {
+  await sessionFetch('/api/v1/me/mfa/totp', { method: 'DELETE' })
+}
+
+export async function regenerateRecoveryCodes(): Promise<string[]> {
+  const payload = await sessionFetch('/api/v1/me/mfa/recovery-codes', { method: 'POST' })
+  const record = requireRecord(payload, 'recovery codes')
+  return readStringArray(record, 'recovery_codes')
 }
 
 export async function logout(): Promise<void> {
