@@ -1,0 +1,18 @@
+# Local build output
+bin/
+
+# Local environment (never commit real secrets)
+.env
+
+# The audit trail is session-local
+.audit/
+
+# Web build output; the placeholder in internal/webui/dist stays tracked
+web/node_modules/
+web/dist/
+internal/webui/dist/*
+!internal/webui/dist/index.html
+
+# Editor and OS noise
+.DS_Store
+*.swp
