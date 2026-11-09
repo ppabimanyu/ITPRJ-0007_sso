@@ -45,6 +45,12 @@ const router = createRouter({
       meta: { titleKey: 'auth.verify.title' },
     },
     {
+      path: '/account',
+      name: 'account',
+      component: () => import('@/features/account/AccountView.vue'),
+      meta: { titleKey: 'account.title', requiresAuth: true },
+    },
+    {
       path: '/admin',
       name: 'admin',
       component: () => import('@/features/admin/AdminView.vue'),
