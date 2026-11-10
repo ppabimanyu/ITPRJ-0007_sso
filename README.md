@@ -406,6 +406,15 @@ authentication. Email, tokens, passwords, cookies, and bodies are redacted.
 | `make web-build` | Build the SPA and embed it in `internal/webui/dist` |
 | `make clean` | Remove Go, web, and embedded build output |
 
+## Operations
+
+- `docs/RUNBOOK.md` covers deploy, backup and restore, signing and master key
+  rotation, session revocation, and Redis failure behavior.
+- `docs/RELEASE_CHECKLIST.md` maps the PRD acceptance criteria to evidence.
+- `deploy/` holds the production Compose file and Caddy template.
+- `conformance/README.md` explains how to run the OpenID conformance suite.
+- `load/README.md` has the k6 scripts and the measured baseline.
+
 ## Checks
 
 ```sh
