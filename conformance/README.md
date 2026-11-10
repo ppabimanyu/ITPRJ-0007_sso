@@ -1,8 +1,11 @@
 # OpenID conformance
 
-Status: belum dijalankan. Environment ini tidak punya endpoint publik, akun
-suite, atau sesi browser untuk menyelesaikan test plan. Dokumen ini mencatat
-langkah yang harus dijalankan sebelum rilis.
+Status: suite lokal sudah dijalankan pada 10 November 2026. Happy flow Basic OP
+lulus setelah perbaikan PKCE. Seluruh 35 modul belum hijau karena upload
+screenshot pada tes `prompt=login` belum diotomatiskan.
+
+Environment ini tidak punya endpoint publik atau akun suite hosted. Dokumen ini
+mencatat langkah lokal dan hasil yang sudah ada.
 
 ## Prasyarat
 
@@ -54,3 +57,29 @@ Selesaikan seluruh modul. Unduh hasil dan simpan ringkasannya di
 
 Semua modul Basic OP harus hijau atau hanya berbeda pada warning yang
 didokumentasikan. Error kritis berarti belum memenuhi PRD §13 butir 2.
+
+## Hasil lokal, 10 November 2026
+
+Suite prebuilt `latest` (versi 5.3.4) berjalan dengan `docker-compose-prebuilt.yml`.
+OP berjalan di `http://host.docker.internal:8093` dengan `EXTERNAL_URL` yang sama,
+sehingga issuer discovery cocok dengan URL yang dipakai suite. Browser memakai
+resolver `host.docker.internal` dan `localhost.emobix.co.uk` ke `127.0.0.1`.
+
+Plan `oidcc-basic-certification-test-plan`, alias `conformance-basic`, static
+client confidential, discovery.
+
+- `oidcc-server`: PASS setelah PKCE dilonggarkan untuk confidential client.
+- `oidcc-userinfo-get`, `oidcc-userinfo-post-header`: PASS.
+- `oidcc-userinfo-post-body`: PASS setelah userinfo menerima `access_token` di
+  form body.
+- `oidcc-ensure-request-without-nonce-succeeds-for-code-flow`: PASS.
+- `oidcc-prompt-none-not-logged-in`: mengembalikan `login_required`, sesuai.
+- `oidcc-scope-profile`: WARNING karena klaim profil opsional seperti
+  `website`, `birthdate`, dan `preferred_username` tidak ada di model user.
+- `oidcc-scope-email`: WARNING karena `email` juga muncul di ID token, bukan
+  hanya userinfo.
+- `oidcc-prompt-login`: mencapai otorisasi kedua dan menunggu upload screenshot.
+  Ini langkah UI suite, bukan kegagalan OP.
+
+Sisa pekerjaan sebelum full plan hijau: otomatiskan upload screenshot dan
+jalankan 35 modul berurutan dengan alias yang sama tanpa konflik.

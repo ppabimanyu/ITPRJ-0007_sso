@@ -6,7 +6,7 @@ dan drill lokal. Kolom status hanya hijau jika bukti sudah dijalankan.
 | # | Kriteria PRD §13 | Status | Bukti |
 |---|---|---|---|
 | 1 | RP uji menyelesaikan login, refresh, logout, backchannel, dan CORS | Hijau | `TestIntegrationOIDCFullCodeFlow`, `TestIntegrationOIDCLogoutAndBackchannel`, `TestIntegrationOIDCDiscoveryJwksAndCORS`, `TestIntegrationOIDCConsentForThirdParty`, `web/e2e/consent.spec.ts` |
-| 2 | Conformance suite profil Basic OP lulus tanpa error kritis | Blocked | Belum dijalankan. Lihat bagian Conformance. |
+| 2 | Conformance suite profil Basic OP lulus tanpa error kritis | Sebagian | Suite lokal jalan. `oidcc-server` PASS setelah PKCE confidential client dilonggarkan; userinfo GET/POST dan nonce PASS; `prompt-login` menunggu upload screenshot. Lihat `conformance/README.md`. |
 | 3 | Vet, lint, govulncheck, frontend gates, unit, integration, e2e hijau | Hijau | `go vet`, `golangci-lint run` 0 issue, `govulncheck` 0 vuln yang dipanggil, `npm run lint/typecheck/build`, `go test ./...` dengan Postgres/Redis, Playwright 15 lulus. CI Go job sekarang menjalankan service Postgres, Redis, dan MailHog dengan `TEST_*` env, jadi integration tidak lagi skip. |
 | 4 | CSRF dan Origin wajib pada endpoint cookie dan pra-sesi | Hijau | `TestIntegrationCSRFAndOriginRejection`, `TestIntegrationAdminOriginRequired`, `TestIntegrationRedisOutageKeepsSessions` |
 | 5 | Rate limit, lockout, dan degradasi Redis terbukti | Hijau | `TestIntegrationLockoutAfterFiveFailures`, `httphandler_ratelimit_test.go`, `TestIntegrationRedisOutageKeepsSessions` |
@@ -36,11 +36,14 @@ Dijalankan 10 November 2026 pada Docker Postgres lokal.
 
 ## Conformance
 
-Belum dijalankan. Langkah dan prasyarat ada di `conformance/README.md`. Suite
-OpenID resmi membutuhkan image Docker, client statis, dan sesi browser untuk
-menyelesaikan test plan. Tidak ada kredensial atau target publik di environment
-ini. Jalankan di host yang bisa diakses suite dan catat hasil Basic OP sebelum
-rilis.
+Suite OpenID lokal sudah dijalankan di atas Docker dengan plan
+`oidcc-basic-certification-test-plan`. Happy flow `oidcc-server` lulus setelah
+PKCE dilonggarkan untuk confidential client. Userinfo GET, userinfo POST header,
+userinfo POST body, dan flow tanpa nonce lulus. `prompt-login` mencapai
+otorisasi kedua dan menunggu upload screenshot dari UI suite. Dua warning yang
+tersisa adalah klaim profil opsional yang tidak ada di model user dan `email`
+yang juga muncul di ID token. Langkah lengkap dan hasilnya ada di
+`conformance/README.md`. Seluruh 35 modul belum dijalankan tuntas.
 
 ## Deploy
 
