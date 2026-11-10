@@ -156,7 +156,12 @@ func (h *handlers) exchangeCode(w http.ResponseWriter, r *http.Request, realm *d
 		writeTokenError(w, http.StatusBadRequest, domain.OAuthInvalidGrant, "redirect_uri does not match the code")
 		return
 	}
-	if !verifyPKCE(code.CodeChallenge, r.PostForm.Get("code_verifier")) {
+	if code.CodeChallenge != "" {
+		if !verifyPKCE(code.CodeChallenge, r.PostForm.Get("code_verifier")) {
+			writeTokenError(w, http.StatusBadRequest, domain.OAuthInvalidGrant, "PKCE verification failed")
+			return
+		}
+	} else if client.Type == domain.ClientTypePublic {
 		writeTokenError(w, http.StatusBadRequest, domain.OAuthInvalidGrant, "PKCE verification failed")
 		return
 	}
