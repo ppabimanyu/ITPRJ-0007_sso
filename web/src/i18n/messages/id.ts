@@ -1,6 +1,7 @@
 export default {
   app: {
     name: 'SSO Service',
+    tagline: 'Identitas internal',
     footer: 'Identitas internal untuk setiap aplikasi.',
   },
   nav: {
@@ -36,6 +37,13 @@ export default {
     retryAfterMinutes: 'Coba lagi dalam {count} menit.',
   },
   auth: {
+    shell: {
+      headline: 'Satu identitas untuk setiap aplikasi internal.',
+      body: 'Masuk sekali, lalu berpindah antar aplikasi internal tanpa diminta kata sandi lagi. Sesi, role, dan audit ada di satu tempat.',
+      factInternal: 'Hanya akun internal.',
+      factMfa: 'Verifikasi dua langkah untuk administrator.',
+      factAudit: 'Setiap peristiwa keamanan tercatat.',
+    },
     login: {
       title: 'Masuk',
       description: 'Gunakan akun internal Anda untuk melanjutkan.',
@@ -251,12 +259,38 @@ export default {
     },
   },
   home: {
+    kicker: 'Layanan identitas',
+    headline: 'Satu identitas untuk setiap aplikasi internal.',
+    body: 'Layanan single sign-on untuk aplikasi yang sudah dipakai tim Anda. Satu akun, satu sesi, satu tempat untuk meninjau akses.',
+    signIn: 'Masuk',
+    openAccount: 'Buka akun',
+    adminConsole: 'Konsol admin',
+    servicesTitle: 'Yang ditangani layanan ini',
+    servicesDescription: 'Bagian identitas yang dibutuhkan setiap aplikasi internal.',
+    service: {
+      sso: {
+        title: 'Single sign-on',
+        description: 'Satu login untuk setiap aplikasi OIDC di realm.',
+      },
+      mfa: {
+        title: 'Verifikasi dua langkah',
+        description: 'Kode autentikator dan kode pemulihan untuk akun yang membutuhkannya.',
+      },
+      sessions: {
+        title: 'Sesi',
+        description: 'Lihat di mana akun sedang masuk dan cabut sesi yang tidak Anda kenali.',
+      },
+      audit: {
+        title: 'Jejak audit',
+        description: 'Setiap login dan perubahan keamanan meninggalkan catatan.',
+      },
+    },
     eyebrow: 'Kerangka Milestone 1',
     description:
       'Layanan single sign-on untuk aplikasi internal. Kerangka ini menguji Vue, router, query, i18n, dan design system terhadap API Go yang berjalan.',
     api: {
-      title: 'Status API',
-      description: 'Halaman beranda membaca endpoint versi dengan fallback health check.',
+      title: 'Status layanan',
+      description: 'Status langsung layanan identitas.',
       checking: 'Memeriksa',
       ready: 'Siap',
       unavailable: 'Tidak tersedia',
@@ -265,7 +299,7 @@ export default {
       version: 'Versi',
       commit: 'Commit',
       goVersion: 'Go',
-      fallback: 'Endpoint versi tidak tersedia. Health check proses menjawab sebagai gantinya.',
+      fallback: 'Informasi versi tidak tersedia. Layanan tetap merespons.',
     },
     stack: {
       title: 'Stack frontend',
@@ -327,6 +361,8 @@ export default {
       retryAfterMinutes: 'Coba lagi dalam {count} menit.',
     },
     dashboard: {
+      registerTitle: 'Register realm',
+      registerDescription: 'Setiap catatan yang disimpan realm ini, dalam satu indeks.',
       users: 'User',
       clients: 'Client',
       sessions: 'Sesi aktif',

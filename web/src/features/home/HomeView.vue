@@ -4,40 +4,39 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
+import { useSession } from '@/features/auth/queries'
 import { fetchApiHealth } from '@/lib/api'
 
 const { t } = useI18n()
+const { data: session } = useSession()
+
+const isSignedIn = computed(() => session.value !== null)
+const isAdmin = computed(() => session.value?.isAdmin === true)
 
 const { data, error, isError, isFetching, isPending, refetch } = useQuery({
   queryKey: ['api-health'],
   queryFn: fetchApiHealth,
 })
 
-const stack = [
-  'Vue 3',
-  'Vite',
-  'Vue Router',
-  'TanStack Query',
-  'vue-i18n',
-  'Tailwind CSS',
-  'shadcn-vue',
-]
+const services = computed(() => [
+  { title: t('home.service.sso.title'), description: t('home.service.sso.description') },
+  { title: t('home.service.mfa.title'), description: t('home.service.mfa.description') },
+  {
+    title: t('home.service.sessions.title'),
+    description: t('home.service.sessions.description'),
+  },
+  { title: t('home.service.audit.title'), description: t('home.service.audit.description') },
+])
 
 const status = computed(() => {
   if (isPending.value) {
-    return { label: t('home.api.checking'), tone: 'bg-amber-500' }
+    return { label: t('home.api.checking'), tone: 'bg-brass' }
   }
   if (isError.value) {
     return { label: t('home.api.unavailable'), tone: 'bg-destructive' }
   }
-  return { label: t('home.api.ready'), tone: 'bg-emerald-500' }
+  return { label: t('home.api.ready'), tone: 'bg-primary' }
 })
 
 const errorMessage = computed(() => {
@@ -49,124 +48,155 @@ const errorMessage = computed(() => {
 </script>
 
 <template>
-  <section class="space-y-8">
-    <div class="space-y-3">
-      <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-        {{ t('home.eyebrow') }}
-      </p>
-      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
-        {{ t('app.name') }}
-      </h1>
-      <p class="max-w-2xl text-muted-foreground">
-        {{ t('home.description') }}
-      </p>
-    </div>
-
-    <div class="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle class="flex items-center justify-between gap-3">
-            <span>{{ t('home.api.title') }}</span>
-            <span
-              class="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium text-muted-foreground"
-            >
-              <span
-                class="h-2 w-2 rounded-full"
-                :class="status.tone"
-              />
-              {{ status.label }}
-            </span>
-          </CardTitle>
-          <CardDescription>{{ t('home.api.description') }}</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <p
-            v-if="isPending"
-            class="text-muted-foreground"
-          >
-            {{ t('home.api.checking') }}…
-          </p>
-
-          <div
-            v-else-if="isError"
-            class="space-y-2"
-          >
-            <p class="font-medium text-destructive">
-              {{ t('home.api.unavailable') }}
-            </p>
-            <p class="font-mono text-xs text-muted-foreground">
-              {{ errorMessage }}
-            </p>
-          </div>
-
-          <div
-            v-else-if="data"
-            class="space-y-3"
-          >
-            <p
-              v-if="!data.version"
-              class="text-muted-foreground"
-            >
-              {{ t('home.api.fallback') }}
-            </p>
-            <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-2 text-sm">
-              <dt class="text-muted-foreground">
-                {{ t('home.api.source') }}
-              </dt>
-              <dd class="font-mono text-xs">
-                {{ data.endpoint }}
-              </dd>
-              <template v-if="data.version">
-                <dt class="text-muted-foreground">
-                  {{ t('home.api.version') }}
-                </dt>
-                <dd class="font-mono text-xs">
-                  {{ data.version.version }}
-                </dd>
-                <dt class="text-muted-foreground">
-                  {{ t('home.api.commit') }}
-                </dt>
-                <dd class="font-mono text-xs">
-                  {{ data.version.commit || 'unknown' }}
-                </dd>
-                <dt class="text-muted-foreground">
-                  {{ t('home.api.goVersion') }}
-                </dt>
-                <dd class="font-mono text-xs">
-                  {{ data.version.goVersion || 'unknown' }}
-                </dd>
-              </template>
-            </dl>
-          </div>
-
+  <section class="space-y-14">
+    <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+      <div class="space-y-6">
+        <div class="seal h-14 w-14 text-2xl">
+          S
+        </div>
+        <p class="kicker">
+          {{ t('home.kicker') }}
+        </p>
+        <h1 class="font-display max-w-2xl text-4xl leading-[1.05] sm:text-6xl">
+          {{ t('home.headline') }}
+        </h1>
+        <p class="max-w-xl text-lg text-muted-foreground">
+          {{ t('home.body') }}
+        </p>
+        <div class="flex flex-wrap gap-3">
           <Button
-            variant="outline"
-            size="sm"
-            :disabled="isFetching"
-            @click="refetch()"
+            v-if="!isSignedIn"
+            as-child
           >
-            {{ t('home.api.retry') }}
+            <RouterLink to="/login">{{ t('home.signIn') }}</RouterLink>
           </Button>
-        </CardContent>
-      </Card>
+          <Button
+            v-else
+            as-child
+          >
+            <RouterLink to="/account">{{ t('home.openAccount') }}</RouterLink>
+          </Button>
+          <Button
+            v-if="isAdmin"
+            as-child
+            variant="outline"
+          >
+            <RouterLink to="/admin">{{ t('home.adminConsole') }}</RouterLink>
+          </Button>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{{ t('home.stack.title') }}</CardTitle>
-          <CardDescription>{{ t('home.stack.description') }}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul class="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-            <li
-              v-for="item in stack"
-              :key="item"
-              class="rounded-md bg-muted px-3 py-2"
-            >
-              {{ item }}
-            </li>
-          </ul>
-        </CardContent>
+      <Card class="gap-4 p-5">
+        <div class="flex items-center justify-between gap-3">
+          <p class="kicker">
+            {{ t('home.api.title') }}
+          </p>
+          <span class="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="status.tone"
+            />
+            {{ status.label }}
+          </span>
+        </div>
+        <p class="text-sm text-muted-foreground">
+          {{ t('home.api.description') }}
+        </p>
+
+        <p
+          v-if="isPending"
+          class="text-sm text-muted-foreground"
+        >
+          {{ t('home.api.checking') }}…
+        </p>
+
+        <div
+          v-else-if="isError"
+          class="space-y-1 border-t pt-3"
+        >
+          <p class="text-sm font-medium text-destructive">
+            {{ t('home.api.unavailable') }}
+          </p>
+          <p class="font-mono text-xs break-all text-muted-foreground">
+            {{ errorMessage }}
+          </p>
+        </div>
+
+        <div
+          v-else-if="data"
+          class="border-t pt-3"
+        >
+          <p
+            v-if="!data.version"
+            class="text-sm text-muted-foreground"
+          >
+            {{ t('home.api.fallback') }}
+          </p>
+          <dl class="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1 text-xs">
+            <dt class="text-muted-foreground">
+              {{ t('home.api.source') }}
+            </dt>
+            <dd class="font-mono break-all">
+              {{ data.endpoint }}
+            </dd>
+            <template v-if="data.version">
+              <dt class="text-muted-foreground">
+                {{ t('home.api.version') }}
+              </dt>
+              <dd class="font-mono">
+                {{ data.version.version }}
+              </dd>
+              <dt class="text-muted-foreground">
+                {{ t('home.api.commit') }}
+              </dt>
+              <dd class="font-mono">
+                {{ data.version.commit || 'unknown' }}
+              </dd>
+              <dt class="text-muted-foreground">
+                {{ t('home.api.goVersion') }}
+              </dt>
+              <dd class="font-mono">
+                {{ data.version.goVersion || 'unknown' }}
+              </dd>
+            </template>
+          </dl>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          class="self-start"
+          :disabled="isFetching"
+          @click="refetch()"
+        >
+          {{ t('home.api.retry') }}
+        </Button>
       </Card>
     </div>
+
+    <section class="space-y-5">
+      <div class="border-b border-border/70 pb-4">
+        <h2 class="font-display text-2xl">
+          {{ t('home.servicesTitle') }}
+        </h2>
+        <p class="text-sm text-muted-foreground">
+          {{ t('home.servicesDescription') }}
+        </p>
+      </div>
+      <div class="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+        <article
+          v-for="service in services"
+          :key="service.title"
+          class="border-t border-border/70 pt-4"
+        >
+          <h3 class="font-medium">
+            {{ service.title }}
+          </h3>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ service.description }}
+          </p>
+        </article>
+      </div>
+    </section>
   </section>
 </template>

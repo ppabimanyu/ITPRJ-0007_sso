@@ -15,9 +15,6 @@ const { signOut, isPending: signingOut } = useSignOut()
 const isSignedIn = computed(() => session.value !== null)
 const isAdmin = computed(() => session.value?.isAdmin === true)
 
-const navLinkClass =
-  'rounded-md px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-
 function changeLocale(value: unknown) {
   if (typeof value === 'string' && isAppLocale(value)) {
     setLocale(value)
@@ -31,57 +28,62 @@ function currentLocale(): AppLocale {
 
 <template>
   <div class="flex min-h-screen flex-col bg-background text-foreground">
-    <header class="border-b bg-card/80 backdrop-blur">
+    <header class="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur">
       <div
-        class="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-4"
+        class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8"
       >
         <RouterLink
           to="/"
           class="flex items-center gap-3"
         >
-          <span
-            class="grid h-9 w-9 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
-          >
-            S
+          <span class="seal">S</span>
+          <span class="flex flex-col leading-tight">
+            <span class="font-display text-lg">{{ t('app.name') }}</span>
+            <span class="text-[11px] text-muted-foreground">{{ t('app.tagline') }}</span>
           </span>
-          <span class="text-sm font-semibold tracking-tight">{{ t('app.name') }}</span>
         </RouterLink>
         <nav class="flex flex-wrap items-center gap-1 text-sm">
           <RouterLink
             to="/"
-            :class="navLinkClass"
-            active-class="bg-accent text-accent-foreground"
+            class="nav-link"
+            exact-active-class="nav-link-active"
           >
             {{ t('nav.home') }}
           </RouterLink>
           <RouterLink
             v-if="isSignedIn"
             to="/account"
-            :class="navLinkClass"
-            active-class="bg-accent text-accent-foreground"
+            class="nav-link"
+            active-class="nav-link-active"
           >
             {{ t('nav.account') }}
           </RouterLink>
           <RouterLink
             v-if="isAdmin"
             to="/admin"
-            :class="navLinkClass"
-            active-class="bg-accent text-accent-foreground"
+            class="nav-link"
+            active-class="nav-link-active"
           >
             {{ t('nav.admin') }}
           </RouterLink>
           <RouterLink
             v-if="!isSignedIn"
             to="/login"
-            :class="navLinkClass"
-            active-class="bg-accent text-accent-foreground"
+            class="nav-link"
+            active-class="nav-link-active"
           >
             {{ t('nav.login') }}
           </RouterLink>
+          <span
+            v-if="isSignedIn"
+            class="mx-1 hidden h-5 w-px bg-border sm:block"
+            aria-hidden="true"
+          />
           <Button
             v-if="isSignedIn"
             variant="ghost"
             size="sm"
+            class="text-muted-foreground"
             :disabled="signingOut"
             @click="signOut"
           >
@@ -99,7 +101,7 @@ function currentLocale(): AppLocale {
           >
             <SelectTrigger
               id="locale-switch"
-              class="h-8 w-20 text-xs"
+              class="h-8 w-16 text-xs"
             >
               <SelectValue />
             </SelectTrigger>
@@ -116,12 +118,17 @@ function currentLocale(): AppLocale {
       </div>
     </header>
 
-    <main class="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
-      <RouterView />
+    <main class="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
+      <div
+        :key="$route.fullPath"
+        class="page-reveal"
+      >
+        <RouterView />
+      </div>
     </main>
 
-    <footer class="border-t">
-      <p class="mx-auto w-full max-w-5xl px-6 py-6 text-xs text-muted-foreground">
+    <footer class="border-t border-border/70">
+      <p class="mx-auto w-full max-w-6xl px-5 py-6 text-xs text-muted-foreground sm:px-8">
         {{ t('app.footer') }}
       </p>
     </footer>

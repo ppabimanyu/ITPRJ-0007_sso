@@ -31,38 +31,41 @@ function isActive(to: string): boolean {
 </script>
 
 <template>
-  <section class="space-y-8">
-    <div class="space-y-3">
-      <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-        {{ t('nav.admin') }}
+  <div class="grid gap-6 lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start">
+    <aside class="min-w-0 lg:sticky lg:top-24">
+      <p class="kicker mb-2 hidden lg:block">
+        {{ t('admin.nav.label') }}
       </p>
-      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
-        {{ t('admin.title') }}
-      </h1>
-      <p class="max-w-3xl text-muted-foreground">
-        {{ t('admin.description') }}
-      </p>
-    </div>
-
-    <nav
-      class="flex flex-wrap gap-1 rounded-lg border bg-card p-1"
-      :aria-label="t('admin.nav.label')"
-    >
-      <RouterLink
-        v-for="link in links"
-        :key="link.to"
-        :to="link.to"
-        class="rounded-md px-3 py-2 text-sm transition-colors"
-        :class="
-          isActive(link.to)
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-        "
+      <nav
+        class="flex w-full min-w-0 gap-1 overflow-x-auto pb-2 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:pb-0"
+        :aria-label="t('admin.nav.label')"
       >
-        {{ link.label }}
-      </RouterLink>
-    </nav>
+        <RouterLink
+          v-for="link in links"
+          :key="link.to"
+          :to="link.to"
+          class="admin-link whitespace-nowrap"
+          :class="{ 'admin-link-active': isActive(link.to) }"
+        >
+          {{ link.label }}
+        </RouterLink>
+      </nav>
+    </aside>
 
-    <RouterView />
-  </section>
+    <div class="min-w-0 space-y-6">
+      <header class="space-y-2 border-b border-border/70 pb-5">
+        <p class="kicker">
+          {{ t('nav.admin') }}
+        </p>
+        <h1 class="font-display text-3xl sm:text-4xl">
+          {{ t('admin.title') }}
+        </h1>
+        <p class="max-w-2xl text-muted-foreground">
+          {{ t('admin.description') }}
+        </p>
+      </header>
+
+      <RouterView />
+    </div>
+  </div>
 </template>

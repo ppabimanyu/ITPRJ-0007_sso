@@ -1,6 +1,7 @@
 export default {
   app: {
     name: 'SSO Service',
+    tagline: 'Internal identity',
     footer: 'Internal identity for every application.',
   },
   nav: {
@@ -36,6 +37,13 @@ export default {
     retryAfterMinutes: 'Try again in {count} minute. | Try again in {count} minutes.',
   },
   auth: {
+    shell: {
+      headline: 'One identity for every internal application.',
+      body: 'Sign in once, then move between internal tools without another password prompt. Sessions, roles, and audit stay in one place.',
+      factInternal: 'Internal accounts only.',
+      factMfa: 'Two-step verification for administrators.',
+      factAudit: 'Every security event is recorded.',
+    },
     login: {
       title: 'Sign in',
       description: 'Use your internal account to continue.',
@@ -248,12 +256,38 @@ export default {
     },
   },
   home: {
+    kicker: 'Identity service',
+    headline: 'One identity for every internal application.',
+    body: 'A single sign-on service for the applications your team already uses. One account, one session, one place to review access.',
+    signIn: 'Sign in',
+    openAccount: 'Open account',
+    adminConsole: 'Admin console',
+    servicesTitle: 'What this service covers',
+    servicesDescription: 'The parts of identity that every internal application needs.',
+    service: {
+      sso: {
+        title: 'Single sign-on',
+        description: 'One login across every OIDC application in the realm.',
+      },
+      mfa: {
+        title: 'Two-step verification',
+        description: 'Authenticator codes and recovery codes for accounts that need them.',
+      },
+      sessions: {
+        title: 'Sessions',
+        description: 'See where an account is signed in and revoke what you do not recognize.',
+      },
+      audit: {
+        title: 'Audit trail',
+        description: 'Every sign-in and security change leaves a record.',
+      },
+    },
     eyebrow: 'Milestone 1 shell',
     description:
       'A single sign-on service for internal applications. This shell exercises the Vue, router, query, i18n, and design-system stack against the live Go API.',
     api: {
-      title: 'API health',
-      description: 'The home page reads the version endpoint with a health check fallback.',
+      title: 'Service status',
+      description: 'Live status of the identity service.',
       checking: 'Checking',
       ready: 'Ready',
       unavailable: 'Unavailable',
@@ -262,7 +296,7 @@ export default {
       version: 'Version',
       commit: 'Commit',
       goVersion: 'Go',
-      fallback: 'Version endpoint unavailable. The process health check answered instead.',
+      fallback: 'Detailed version information is unavailable. The service is still responding.',
     },
     stack: {
       title: 'Frontend stack',
@@ -324,6 +358,8 @@ export default {
       retryAfterMinutes: 'Try again in {count} minute. | Try again in {count} minutes.',
     },
     dashboard: {
+      registerTitle: 'Realm register',
+      registerDescription: 'Every record this realm keeps, in one index.',
       users: 'Users',
       clients: 'Clients',
       sessions: 'Active sessions',

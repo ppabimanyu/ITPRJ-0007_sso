@@ -1,6 +1,9 @@
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { createApp } from 'vue'
 
+import '@fontsource-variable/public-sans'
+import '@fontsource-variable/newsreader'
+
 import App from './App.vue'
 import { i18n } from './i18n'
 import { clearAuthCache } from './lib/auth-cache'

@@ -6,7 +6,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { useSession } from '../auth/queries'
@@ -38,20 +37,26 @@ const displayName = computed(() => {
     v-if="session"
     class="space-y-8"
   >
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div class="space-y-2">
-        <p class="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+    <div class="grid gap-5 rounded-lg border bg-card p-6 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+      <div class="seal h-14 w-14 text-2xl">
+        S
+      </div>
+      <div class="space-y-1">
+        <p class="kicker">
           {{ t('account.eyebrow') }}
         </p>
-        <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1 class="font-display text-3xl sm:text-4xl">
           {{ t('account.title') }}
         </h1>
         <p class="text-muted-foreground">
-          {{ displayName }} · {{ session.user.email }}
+          {{ displayName }}
+        </p>
+        <p class="text-sm text-muted-foreground">
+          {{ session.user.email }}
         </p>
         <div
           v-if="session.user.roles.length > 0"
-          class="flex flex-wrap items-center gap-2"
+          class="flex flex-wrap items-center gap-2 pt-1"
         >
           <span class="text-xs text-muted-foreground">{{ t('account.roles') }}</span>
           <Badge
@@ -73,20 +78,32 @@ const displayName = computed(() => {
       </Button>
     </div>
 
-    <Separator />
-
     <Tabs default-value="profile">
-      <TabsList class="w-full">
-        <TabsTrigger value="profile">
+      <TabsList
+        class="h-auto w-full justify-start gap-0 overflow-x-auto rounded-none border-b border-border/70 bg-transparent p-0"
+      >
+        <TabsTrigger
+          value="profile"
+          class="h-auto shrink-0 rounded-none border-b-2 border-transparent px-4 py-3 text-sm text-muted-foreground shadow-none data-[state=active]:border-b-brass data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+        >
           {{ t('account.profile.title') }}
         </TabsTrigger>
-        <TabsTrigger value="password">
+        <TabsTrigger
+          value="password"
+          class="h-auto shrink-0 rounded-none border-b-2 border-transparent px-4 py-3 text-sm text-muted-foreground shadow-none data-[state=active]:border-b-brass data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+        >
           {{ t('account.password.title') }}
         </TabsTrigger>
-        <TabsTrigger value="mfa">
+        <TabsTrigger
+          value="mfa"
+          class="h-auto shrink-0 rounded-none border-b-2 border-transparent px-4 py-3 text-sm text-muted-foreground shadow-none data-[state=active]:border-b-brass data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+        >
           {{ t('account.mfa.tabLabel') }}
         </TabsTrigger>
-        <TabsTrigger value="sessions">
+        <TabsTrigger
+          value="sessions"
+          class="h-auto shrink-0 rounded-none border-b-2 border-transparent px-4 py-3 text-sm text-muted-foreground shadow-none data-[state=active]:border-b-brass data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+        >
           {{ t('account.sessions.title') }}
         </TabsTrigger>
       </TabsList>
