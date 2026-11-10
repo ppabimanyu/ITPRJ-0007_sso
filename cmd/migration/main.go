@@ -36,9 +36,7 @@ func run(args []string) error {
 	}
 	command := args[0]
 	switch command {
-	case "rotate-master-key":
-		return fmt.Errorf("%s remains out of scope for M3; no changes were made", command)
-	case "rotate-key", "up", "down", "seed", "bootstrap":
+	case "rotate-key", "rotate-master-key", "up", "down", "seed", "bootstrap":
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", command)
@@ -49,7 +47,7 @@ func run(args []string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	db, err := database.Open(ctx, cfg.Database.URL)
@@ -77,6 +75,8 @@ func run(args []string) error {
 		return seed(ctx, cfg, db, password)
 	case "rotate-key":
 		return rotateKey(ctx, cfg, db)
+	case "rotate-master-key":
+		return rotateMasterKey(ctx, cfg, db)
 	}
 	return nil
 }
@@ -91,7 +91,7 @@ commands:
                               ensure default realm, platform-admin role, admin user, signing key
   seed --password-stdin       ensure sample realm data, two clients, and a sample user
   rotate-key                  create a new active signing key and retire the old one after 24h
-  rotate-master-key           reserved for a later milestone`)
+  rotate-master-key           re-encrypt signing keys, SMTP passwords, and MFA secrets with the active master key`)
 }
 
 func migrateUp(ctx context.Context, db *database.DB) error {
@@ -459,6 +459,20 @@ func rotateKey(ctx context.Context, cfg *config.Config, db *database.DB) error {
 	}
 	fmt.Printf("rotation: new kid=%s realm=%s published=%d retire_after=24h\n",
 		next.KID, realm.Name, len(published))
+	return nil
+}
+
+func rotateMasterKey(ctx context.Context, cfg *config.Config, db *database.DB) error {
+	ring, err := pkg.NewKeyring(cfg.MasterKeys.Keys, cfg.MasterKeys.KeyID)
+	if err != nil {
+		return fmt.Errorf("build master keyring: %w", err)
+	}
+	stats, err := repository.ReencryptMasterKeys(ctx, db.Pool, ring)
+	if err != nil {
+		return fmt.Errorf("rotate master key: %w", err)
+	}
+	fmt.Printf("master-key rotation: active=%s signing_keys=%d smtp_passwords=%d mfa_secrets=%d\n",
+		ring.ActiveKeyID(), stats.SigningKeys, stats.SMTPPasswords, stats.MFASecrets)
 	return nil
 }
 

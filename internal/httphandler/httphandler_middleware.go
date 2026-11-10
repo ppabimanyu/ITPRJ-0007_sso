@@ -230,8 +230,10 @@ func Recoverer(next http.Handler) http.Handler {
 // SecurityHeaders applies the baseline header set from ARCHITECTURE §10.
 func SecurityHeaders(production bool) func(http.Handler) http.Handler {
 	const csp = "default-src 'self'; script-src 'self'; style-src 'self'; " +
-		"img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; " +
+		"img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; " +
+		"object-src 'none'; frame-src 'none'; frame-ancestors 'none'; " +
 		"base-uri 'none'; form-action 'self'"
+	const permissions = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := w.Header()
@@ -239,6 +241,7 @@ func SecurityHeaders(production bool) func(http.Handler) http.Handler {
 			header.Set("X-Content-Type-Options", "nosniff")
 			header.Set("X-Frame-Options", "DENY")
 			header.Set("Referrer-Policy", "no-referrer")
+			header.Set("Permissions-Policy", permissions)
 			if production {
 				header.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 			}

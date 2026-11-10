@@ -420,6 +420,31 @@ func TestIntegrationOIDCClientCredentials(t *testing.T) {
 		t.Fatalf("client_secret_post = %d, body = %s", postResp.StatusCode, postBody)
 	}
 
+	previousLimit := tokenClientLimit
+	tokenClientLimit = 2
+	t.Cleanup(func() { tokenClientLimit = previousLimit })
+	limitedResp, limitedBody := it.form(t, httpClient, "/realms/default/token", url.Values{
+		"grant_type":    {domain.GrantTypeClientCredentials},
+		"client_id":     {client.ClientID},
+		"client_secret": {secret},
+		"scope":         {"openid"},
+	}, nil)
+	if limitedResp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("rate limited client credentials = %d, body = %s", limitedResp.StatusCode, limitedBody)
+	}
+	var limited struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(limitedBody, &limited); err != nil {
+		t.Fatalf("rate limit body: %v (%s)", err, limitedBody)
+	}
+	if limited.Error != domain.OAuthTemporarilyUnavailable {
+		t.Fatalf("rate limit error = %q", limited.Error)
+	}
+	if limitedResp.Header.Get("Retry-After") == "" {
+		t.Fatal("rate limit response is missing Retry-After")
+	}
+
 	introspectResp, introspectBody := it.form(t, httpClient, "/realms/default/introspect", url.Values{
 		"client_id":       {client.ClientID},
 		"client_secret":   {secret},
@@ -799,5 +824,28 @@ func TestIntegrationOIDCPromptNone(t *testing.T) {
 	}
 	if location.Query().Get("state") != params.state {
 		t.Errorf("prompt=none error redirect lost state")
+	}
+}
+
+func TestIntegrationClientCredentialsRejectsPublicClient(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	client, _ := it.createOIDCClient(t, realm, domain.ClientTypePublic, false, "")
+
+	resp, body := it.form(t, it.client(t), "/realms/default/token", url.Values{
+		"grant_type": {domain.GrantTypeClientCredentials},
+		"client_id":  {client.ClientID},
+	}, nil)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("public client credentials = %d, body = %s", resp.StatusCode, body)
+	}
+	var oauth struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &oauth); err != nil {
+		t.Fatalf("body: %v (%s)", err, body)
+	}
+	if oauth.Error != domain.OAuthUnauthorizedClient {
+		t.Fatalf("error = %q", oauth.Error)
 	}
 }

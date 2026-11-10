@@ -26,6 +26,12 @@ func (h *handlers) forgotPassword(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, r, http.StatusBadRequest, domain.CodeBadRequest, "email is required")
 		return
 	}
+	if !h.allowRate(w, r, rateLimitPolicy{
+		scope: "forgot_ip", limit: forgotIPLimit, window: forgotIPWindow,
+		mode: rateLimitProblem, failClosed: true,
+	}, clientIP(r)) {
+		return
+	}
 	realm, err := h.realm(r.Context())
 	if err != nil {
 		h.logInternal(r.Context(), "realm_lookup_failed", err)
@@ -271,7 +277,7 @@ func (h *handlers) acceptInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) hashNewPassword(w http.ResponseWriter, r *http.Request, plaintext string) (string, []byte, bool) {
-	hash, err := password.Hash(plaintext)
+	hash, err := h.hashPassword(r.Context(), plaintext)
 	if err != nil {
 		h.logInternal(r.Context(), "password_hash_failed", err)
 		WriteProblem(w, r, http.StatusInternalServerError, domain.CodeInternal,

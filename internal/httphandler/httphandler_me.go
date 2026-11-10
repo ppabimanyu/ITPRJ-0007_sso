@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ppa/itprj-0007-sso/internal/domain"
-	"github.com/ppa/itprj-0007-sso/internal/pkg/password"
 )
 
 func (h *handlers) getMe(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +115,7 @@ func (h *handlers) changePassword(w http.ResponseWriter, r *http.Request) {
 			"the server could not complete the request")
 		return
 	}
-	valid, err := password.Verify(request.CurrentPassword, credential.PasswordHash)
+	valid, err := h.verifyPassword(r.Context(), request.CurrentPassword, credential.PasswordHash)
 	if err != nil || !valid {
 		WriteProblem(w, r, http.StatusUnauthorized, domain.CodeInvalidCredentials,
 			"current password is incorrect")

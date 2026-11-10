@@ -65,8 +65,15 @@ printf '%s\n' 'Dev-Only-Passw0rd!' | go run ./cmd/migration seed --password-stdi
 Both commands converge on the same state when rerun. Rotate the realm signing
 key with `go run ./cmd/migration rotate-key`. The command creates a new active
 RSA-3072 key and retires the old one after 24 hours, so tokens signed before the
-rotation keep verifying inside that window. `rotate-master-key` remains
-reserved for a later milestone.
+rotation keep verifying inside that window.
+
+Rotate the master key with `go run ./cmd/migration rotate-master-key`. The
+rotation is zero-downtime only in this order. Add the new key to
+`SSO_MASTER_KEYS` and point `SSO_MASTER_KEY_ID` at it while keeping the old key,
+then deploy the server with that keyring. The server can still decrypt old
+envelopes. Run the command and wait until it reports zero re-encrypted rows,
+then remove the old key and deploy again. The command re-encrypts signing keys,
+realm SMTP passwords, and MFA secrets, and can run again safely.
 
 ## Auth API (M2)
 
@@ -173,7 +180,9 @@ refresh token.
 
 Groups are flat. Membership changes affect the next token, never one already
 issued. Audit metadata never contains passwords, tokens, secrets, or email
-addresses; the viewer shows user IDs and joins email separately when needed.
+addresses. The viewer resolves the actor email through a join and falls back to
+the actor ID. Audit events older than 90 days are deleted by the retention
+worker.
 
 ### Realm SMTP
 

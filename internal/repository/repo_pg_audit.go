@@ -24,6 +24,29 @@ func (r *PgAuditRepository) Insert(ctx context.Context, event *domain.AuditEvent
 	return insertAudit(ctx, r.pool, event)
 }
 
+// DeleteBefore removes audit events in bounded batches so a large backlog does
+// not hold one long transaction.
+func (r *PgAuditRepository) DeleteBefore(ctx context.Context, before time.Time) (int64, error) {
+	var total int64
+	for {
+		tag, err := r.pool.Exec(ctx, `
+			DELETE FROM audit_event
+			WHERE id IN (
+				SELECT id FROM audit_event
+				WHERE created_at < $1
+				ORDER BY created_at
+				LIMIT 1000
+			)`, before)
+		if err != nil {
+			return total, mapError(err)
+		}
+		total += tag.RowsAffected()
+		if tag.RowsAffected() < 1000 {
+			return total, nil
+		}
+	}
+}
+
 // insertAuditTx writes the event inside a business transaction so the evidence
 // and the state change commit together.
 func insertAuditTx(ctx context.Context, tx pgx.Tx, event *domain.AuditEvent) error {
@@ -74,3 +97,5 @@ func (r *PgAuditRepository) ListByRealm(ctx context.Context, realmID domain.Real
 	}
 	return events, mapError(rows.Err())
 }
+
+var _ domain.AuditRetentionRepository = (*PgAuditRepository)(nil)

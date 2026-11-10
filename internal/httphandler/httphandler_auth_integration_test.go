@@ -506,7 +506,10 @@ func TestIntegrationSessionListAndRevoke(t *testing.T) {
 	}
 
 	resp, body = it.request(t, first, http.MethodDelete, "/api/v1/me/sessions/"+otherID, nil,
-		map[string]string{"X-CSRF-Token": it.cookie(t, first, csrfCookieName)})
+		map[string]string{
+			"X-CSRF-Token": it.cookie(t, first, csrfCookieName),
+			"Origin":       "http://localhost:5173",
+		})
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("revoke status = %d, body = %s", resp.StatusCode, body)
 	}
@@ -563,7 +566,10 @@ func TestIntegrationChangePasswordRevokesOtherSessions(t *testing.T) {
 
 	resp, body = it.request(t, third, http.MethodPatch, "/api/v1/me",
 		domain.ProfileUpdateRequest{Name: stringPtr("Renamed User")},
-		map[string]string{"X-CSRF-Token": it.cookie(t, third, csrfCookieName)})
+		map[string]string{
+			"X-CSRF-Token": it.cookie(t, third, csrfCookieName),
+			"Origin":       "http://localhost:5173",
+		})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("profile update = %d, body = %s", resp.StatusCode, body)
 	}

@@ -63,3 +63,24 @@ func sessionIdleTTL(admin, remember bool) time.Duration {
 		return normalIdle
 	}
 }
+
+func (h *handlers) loginIPLimit() int {
+	if h.deps.Config != nil && h.deps.Config.RateLimit.LoginIPLimit > 0 {
+		return h.deps.Config.RateLimit.LoginIPLimit
+	}
+	return loginIPLimit
+}
+
+func (h *handlers) loginAccountLimit() int {
+	if h.deps.Config != nil && h.deps.Config.RateLimit.LoginAccountLimit > 0 {
+		return h.deps.Config.RateLimit.LoginAccountLimit
+	}
+	return loginAccountLimit
+}
+
+func (h *handlers) tokenClientLimit() int {
+	if h.deps.Config != nil && h.deps.Config.RateLimit.TokenClientLimit > 0 {
+		return h.deps.Config.RateLimit.TokenClientLimit
+	}
+	return tokenClientLimit
+}

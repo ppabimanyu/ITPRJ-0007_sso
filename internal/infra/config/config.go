@@ -27,6 +27,8 @@ type Config struct {
 	Proxies        ProxyConfig
 	AllowedOrigins []string
 	Password       PasswordConfig
+	RateLimit      RateLimitConfig
+	Argon2         Argon2Config
 	SMTP           SMTPConfig
 }
 
@@ -37,6 +39,21 @@ type HTTPConfig struct {
 
 type PasswordConfig struct {
 	MinLength int
+}
+
+// RateLimitConfig carries the deployment-tunable counters.
+type RateLimitConfig struct {
+	LoginIPLimit      int
+	LoginAccountLimit int
+	AuthIPLimit       int
+	APIIPLimit        int
+	OIDCIPLimit       int
+	TokenClientLimit  int
+}
+
+// Argon2Config bounds concurrent password hashing.
+type Argon2Config struct {
+	Concurrency int
 }
 
 type SMTPConfig struct {
@@ -185,6 +202,41 @@ func Parse(getenv func(string) string) (*Config, error) {
 		fail("PASSWORD_MIN_LENGTH: %v", passwordErr)
 	}
 
+	loginIPLimit, err := parseLimit(getenv, "AUTH_LOGIN_IP_LIMIT", 10)
+	if err != nil {
+		fail("%v", err)
+	}
+	loginAccountLimit, err := parseLimit(getenv, "AUTH_LOGIN_ACCOUNT_LIMIT", 5)
+	if err != nil {
+		fail("%v", err)
+	}
+	authIPLimit, err := parseLimit(getenv, "AUTH_IP_LIMIT", 600)
+	if err != nil {
+		fail("%v", err)
+	}
+	apiIPLimit, err := parseLimit(getenv, "API_IP_LIMIT", 3000)
+	if err != nil {
+		fail("%v", err)
+	}
+	oidcIPLimit, err := parseLimit(getenv, "OIDC_IP_LIMIT", 600)
+	if err != nil {
+		fail("%v", err)
+	}
+	tokenClientLimit, err := parseLimit(getenv, "TOKEN_CLIENT_LIMIT", 6000)
+	if err != nil {
+		fail("%v", err)
+	}
+
+	argon2Concurrency := 2
+	if raw := strings.TrimSpace(getenv("ARGON2_CONCURRENCY")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 64 {
+			fail("ARGON2_CONCURRENCY must be between 1 and 64")
+		} else {
+			argon2Concurrency = parsed
+		}
+	}
+
 	smtpHost := valueOr(getenv, "SMTP_HOST", "localhost")
 	smtpPort := valueOr(getenv, "SMTP_PORT", "1025")
 	if err := validatePort(smtpPort); err != nil {
@@ -219,6 +271,15 @@ func Parse(getenv func(string) string) (*Config, error) {
 		Proxies:        ProxyConfig{TrustedCIDRs: proxies},
 		AllowedOrigins: origins,
 		Password:       PasswordConfig{MinLength: passwordMin},
+		RateLimit: RateLimitConfig{
+			LoginIPLimit:      loginIPLimit,
+			LoginAccountLimit: loginAccountLimit,
+			AuthIPLimit:       authIPLimit,
+			APIIPLimit:        apiIPLimit,
+			OIDCIPLimit:       oidcIPLimit,
+			TokenClientLimit:  tokenClientLimit,
+		},
+		Argon2: Argon2Config{Concurrency: argon2Concurrency},
 		SMTP: SMTPConfig{
 			Host:     smtpHost,
 			Port:     smtpPort,
@@ -263,6 +324,18 @@ func valueOr(getenv func(string) string, key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func parseLimit(getenv func(string) string, name string, fallback int) (int, error) {
+	raw := strings.TrimSpace(getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < 1 || parsed > 1_000_000 {
+		return 0, fmt.Errorf("%s must be between 1 and 1000000", name)
+	}
+	return parsed, nil
 }
 
 func parseOrigins(raw, externalURL, appEnv string) ([]string, error) {

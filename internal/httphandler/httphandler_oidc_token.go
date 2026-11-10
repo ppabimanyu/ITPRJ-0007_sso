@@ -30,6 +30,12 @@ func (h *handlers) token(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.allowRate(w, r, rateLimitPolicy{
+		scope: "token_client", limit: h.tokenClientLimit(), window: tokenClientWindow,
+		mode: rateLimitOAuth, failClosed: true,
+	}, tokenRateKey(client, r)) {
+		return
+	}
 	switch grant := r.PostForm.Get("grant_type"); grant {
 	case domain.GrantTypeAuthorizationCode:
 		h.exchangeCode(w, r, realm, client)
@@ -460,6 +466,13 @@ func (h *handlers) idTokenTTL(client *domain.Client) time.Duration {
 		return time.Duration(*client.IDTokenTTLSeconds) * time.Second
 	}
 	return idTokenTTL
+}
+
+func tokenRateKey(client *domain.Client, r *http.Request) string {
+	if client.Type == domain.ClientTypePublic {
+		return client.ClientID + "|" + clientIP(r)
+	}
+	return client.ClientID
 }
 
 func writeTokenError(w http.ResponseWriter, status int, code, description string) {

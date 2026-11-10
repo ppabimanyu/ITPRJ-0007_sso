@@ -197,7 +197,7 @@ function metadataText(value: unknown): string {
                     {{ event.actorType }}
                   </p>
                   <p class="break-all text-muted-foreground">
-                    {{ event.actorId ?? t('admin.common.none') }}
+                    {{ event.actorEmail ?? event.actorId ?? t('admin.common.none') }}
                   </p>
                 </div>
               </TableCell>

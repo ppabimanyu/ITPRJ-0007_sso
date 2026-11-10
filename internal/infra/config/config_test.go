@@ -147,6 +147,50 @@ func TestParseAuthDefaults(t *testing.T) {
 	}
 }
 
+func TestSessionCookieProductionPrefix(t *testing.T) {
+	cfg := &Config{AppEnv: "production"}
+	if got := cfg.SessionCookieName(); got != "__Host-sso_session" {
+		t.Fatalf("SessionCookieName() = %q, want __Host-sso_session", got)
+	}
+	if !cfg.SessionCookieSecure() {
+		t.Fatal("production session cookie must be Secure")
+	}
+}
+
+func TestParseAuthLoginIPLimit(t *testing.T) {
+	env := validEnv()
+	env["AUTH_LOGIN_IP_LIMIT"] = "25"
+	cfg, err := Parse(lookup(env))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.RateLimit.LoginIPLimit != 25 {
+		t.Fatalf("LoginIPLimit = %d, want 25", cfg.RateLimit.LoginIPLimit)
+	}
+
+	env["AUTH_LOGIN_IP_LIMIT"] = "0"
+	if _, err := Parse(lookup(env)); err == nil {
+		t.Fatal("expected an invalid AUTH_LOGIN_IP_LIMIT to fail")
+	}
+}
+
+func TestParseArgon2Concurrency(t *testing.T) {
+	env := validEnv()
+	env["ARGON2_CONCURRENCY"] = "4"
+	cfg, err := Parse(lookup(env))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Argon2.Concurrency != 4 {
+		t.Fatalf("Argon2.Concurrency = %d, want 4", cfg.Argon2.Concurrency)
+	}
+
+	env["ARGON2_CONCURRENCY"] = "0"
+	if _, err := Parse(lookup(env)); err == nil {
+		t.Fatal("expected an invalid ARGON2_CONCURRENCY to fail")
+	}
+}
+
 func TestParseAuthOverrides(t *testing.T) {
 	env := validEnv()
 	env["ALLOWED_ORIGINS"] = "https://app.example.com, https://admin.example.com"
