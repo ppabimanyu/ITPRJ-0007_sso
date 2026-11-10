@@ -7,7 +7,7 @@ dan drill lokal. Kolom status hanya hijau jika bukti sudah dijalankan.
 |---|---|---|---|
 | 1 | RP uji menyelesaikan login, refresh, logout, backchannel, dan CORS | Hijau | `TestIntegrationOIDCFullCodeFlow`, `TestIntegrationOIDCLogoutAndBackchannel`, `TestIntegrationOIDCDiscoveryJwksAndCORS`, `TestIntegrationOIDCConsentForThirdParty`, `web/e2e/consent.spec.ts` |
 | 2 | Conformance suite profil Basic OP lulus tanpa error kritis | Blocked | Belum dijalankan. Lihat bagian Conformance. |
-| 3 | Vet, lint, govulncheck, frontend gates, unit, integration, e2e hijau | Hijau | `go vet`, `golangci-lint run` 0 issue, `govulncheck` 0 vuln yang dipanggil, `npm run lint/typecheck/build`, `go test ./...` dengan Postgres/Redis, Playwright 15 lulus |
+| 3 | Vet, lint, govulncheck, frontend gates, unit, integration, e2e hijau | Hijau | `go vet`, `golangci-lint run` 0 issue, `govulncheck` 0 vuln yang dipanggil, `npm run lint/typecheck/build`, `go test ./...` dengan Postgres/Redis, Playwright 15 lulus. CI Go job sekarang menjalankan service Postgres, Redis, dan MailHog dengan `TEST_*` env, jadi integration tidak lagi skip. |
 | 4 | CSRF dan Origin wajib pada endpoint cookie dan pra-sesi | Hijau | `TestIntegrationCSRFAndOriginRejection`, `TestIntegrationAdminOriginRequired`, `TestIntegrationRedisOutageKeepsSessions` |
 | 5 | Rate limit, lockout, dan degradasi Redis terbukti | Hijau | `TestIntegrationLockoutAfterFiveFailures`, `httphandler_ratelimit_test.go`, `TestIntegrationRedisOutageKeepsSessions` |
 | 6 | Rotasi signing key dan master key tidak memutus token | Hijau | `TestKeyRotationKeepsOldTokensVerifying`, `TestIntegrationMasterKeyRotationKeepsSecrets` |

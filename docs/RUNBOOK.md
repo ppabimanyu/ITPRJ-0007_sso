@@ -25,7 +25,7 @@ Jalankan migrasi sebagai langkah terpisah sebelum app start.
 
 ```sh
 docker run --rm --env-file /etc/sso/production.env \
-  sso-service:<tag> /migration up
+  --entrypoint /migration sso-service:<tag> up
 ```
 
 Bootstrap pertama kali hanya jika realm dan admin belum ada. Password dibaca
@@ -33,8 +33,8 @@ dari stdin, tidak pernah dari argumen.
 
 ```sh
 printf '%s\n' "$SSO_ADMIN_PASSWORD" | docker run --rm -i \
-  --env-file /etc/sso/production.env sso-service:<tag> \
-  /migration bootstrap --email admin@example.com --password-stdin
+  --env-file /etc/sso/production.env --entrypoint /migration \
+  sso-service:<tag> bootstrap --email admin@example.com --password-stdin
 ```
 
 Jalankan app di belakang reverse proxy TLS. Caddy contoh ada di `Caddyfile`
@@ -70,7 +70,8 @@ luar host database. Redis tidak di-backup.
 
 ```sh
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
-pg_dump "$DATABASE_URL" -Fc -f "/backup/sso-$stamp.dump"
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec -T postgres \
+  pg_dump -U "${POSTGRES_USER:-sso}" -Fc "${POSTGRES_DB:-sso}" > "/backup/sso-$stamp.dump"
 age -r "$BACKUP_RECIPIENT" -o "/backup/sso-$stamp.dump.age" "/backup/sso-$stamp.dump"
 rm "/backup/sso-$stamp.dump"
 find /backup -name 'sso-*.dump.age' -mtime +7 -delete
@@ -90,24 +91,31 @@ Restore ke database kosong, lalu jalankan migrasi untuk memastikan versi
 skema terbaru. Jangan restore ke database yang sedang dipakai app.
 
 ```sh
-createdb -h "$PGHOST" -U "$PGUSER" sso_restore
+RESTORE_URL="postgres://sso:<password>@postgres:5432/sso_restore?sslmode=disable"
 age -d -i "$BACKUP_IDENTITY" -o /tmp/sso.dump /backup/sso-<stamp>.dump.age
-pg_restore -h "$PGHOST" -U "$PGUSER" -d sso_restore --no-owner --no-privileges /tmp/sso.dump
-DATABASE_URL="postgres://.../sso_restore" go run ./cmd/migration up
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec -T postgres \
+  psql -U "${POSTGRES_USER:-sso}" -d postgres -c 'CREATE DATABASE sso_restore OWNER sso'
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec -T postgres \
+  pg_restore -U "${POSTGRES_USER:-sso}" -d sso_restore --no-owner --no-privileges < /tmp/sso.dump
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env run --rm \
+  -e DATABASE_URL="$RESTORE_URL" migrate
 ```
 
 Verifikasi jumlah baris dan versi migrasi, lalu arahkan app ke database hasil
 restore dan cek `/readyz` serta login admin.
 
 ```sh
-psql "$RESTORE_URL" -c 'SELECT count(*) FROM "user"'
-psql "$RESTORE_URL" -c 'SELECT max(version_id) FROM goose_db_version'
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec -T postgres \
+  psql -U "${POSTGRES_USER:-sso}" -d sso_restore -c 'SELECT count(*) FROM "user"'
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env exec -T postgres \
+  psql -U "${POSTGRES_USER:-sso}" -d sso_restore -c 'SELECT max(version_id) FROM goose_db_version'
 ```
 
 ## 6. Rotasi signing key
 
 ```sh
-go run ./cmd/migration rotate-key
+docker run --rm --env-file /etc/sso/production.env \
+  --entrypoint /migration sso-service:<tag> rotate-key
 ```
 
 Perintah membuat key aktif baru dan mempensiunkan key lama setelah 24 jam.
@@ -125,7 +133,8 @@ Urutannya penting agar tidak ada downtime.
 3. Jalankan re-enkripsi.
 
    ```sh
-   go run ./cmd/migration rotate-master-key
+   docker run --rm --env-file /etc/sso/production.env \
+     --entrypoint /migration sso-service:<tag> rotate-master-key
    ```
 
 4. Tunggu sampai perintah melaporkan `signing_keys=0 smtp_passwords=0
@@ -160,9 +169,8 @@ Perilaku yang diharapkan.
 - `/readyz` mengembalikan `200` dengan `status: degraded`.
 - Setelah Redis kembali, login dan endpoint kredensial pulih tanpa restart.
 
-Jangan restart app hanya karena Redis mati. Restart akan memutus sesi di
-memori? Tidak, sesi ada di Postgres; restart tidak diperlukan dan hanya
-menambah gangguan.
+Jangan restart app hanya karena Redis mati. Sesi ada di Postgres, jadi restart
+tidak diperlukan dan hanya menambah gangguan.
 
 ## 10. Rollback
 
@@ -170,8 +178,13 @@ menambah gangguan.
 - Migrasi bersifat maju. Rollback kode tanpa rollback skema hanya aman jika
   rilis baru tidak menambah kolom yang dibutuhkan kode lama; periksa migrasi
   yang berubah sebelum rollback.
-- Untuk rollback penuh, jalankan `go run ./cmd/migration down` satu langkah,
+- Untuk rollback penuh, jalankan satu langkah `down` dengan image saat ini,
   lalu jalankan image sebelumnya.
+
+  ```sh
+  docker run --rm --env-file /etc/sso/production.env \
+    --entrypoint /migration sso-service:<tag> down
+  ```
 
 ## 11. Catatan drill
 
