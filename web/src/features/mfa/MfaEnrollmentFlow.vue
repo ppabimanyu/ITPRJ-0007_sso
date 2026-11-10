@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { QrcodeSvg } from 'qrcode.vue'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -159,9 +160,40 @@ function complete() {
       novalidate
       @submit.prevent="submit"
     >
-      <p class="text-sm text-muted-foreground">
-        {{ t('auth.enroll.scanHint') }}
-      </p>
+      <div class="flex flex-col items-center gap-3">
+        <div
+          class="rounded-md border border-brass/40 bg-white p-2"
+          role="img"
+          :aria-label="t('auth.enroll.qrAlt')"
+        >
+          <QrcodeSvg
+            v-if="otpauthUri"
+            :value="otpauthUri"
+            :size="176"
+            level="M"
+            :margin="4"
+            background="#ffffff"
+            foreground="#101a15"
+            aria-hidden="true"
+          />
+        </div>
+        <div class="space-y-1 text-center">
+          <p class="font-display text-lg leading-snug">
+            {{ t('auth.enroll.qrLabel') }}
+          </p>
+          <p class="max-w-sm text-sm text-muted-foreground">
+            {{ t('auth.enroll.qrHint') }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 pt-1">
+        <span class="text-xs text-muted-foreground">{{ t('auth.enroll.manualLabel') }}</span>
+        <span
+          class="h-px flex-1 bg-border"
+          aria-hidden="true"
+        />
+      </div>
 
       <div class="space-y-2">
         <Label for="mfa-enroll-secret">{{ t('auth.enroll.secretLabel') }}</Label>
