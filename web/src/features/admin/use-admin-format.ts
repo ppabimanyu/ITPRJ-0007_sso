@@ -6,6 +6,25 @@ export function useAdminFormat() {
   const dateFormat = computed(
     () => new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }),
   )
+  const compactFormat = computed(
+    () =>
+      new Intl.DateTimeFormat(locale.value, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+  )
+  const compactFormatWithYear = computed(
+    () =>
+      new Intl.DateTimeFormat(locale.value, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+  )
 
   function formatDate(value: string | null): string {
     if (value === null || value === '') {
@@ -15,5 +34,18 @@ export function useAdminFormat() {
     return Number.isNaN(date.getTime()) ? value : dateFormat.value.format(date)
   }
 
-  return { formatDate }
+  function formatCompactDate(value: string | null): string {
+    if (value === null || value === '') {
+      return ''
+    }
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return value
+    }
+    const format =
+      date.getFullYear() === new Date().getFullYear() ? compactFormat.value : compactFormatWithYear.value
+    return format.format(date)
+  }
+
+  return { formatDate, formatCompactDate }
 }

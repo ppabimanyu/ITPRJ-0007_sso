@@ -24,7 +24,7 @@ import { useAdminPager } from '../use-admin-pager'
 type SessionStatus = '' | 'active' | 'revoked' | 'expired'
 
 const { t } = useI18n()
-const { formatDate } = useAdminFormat()
+const { formatCompactDate } = useAdminFormat()
 const pager = useAdminPager()
 
 const userId = ref('')
@@ -76,6 +76,36 @@ function statusVariant(value: 'active' | 'revoked' | 'expired'): 'secondary' | '
     return 'destructive'
   }
   return value === 'active' ? 'secondary' : 'outline'
+}
+
+const browserPatterns: Array<[RegExp, string]> = [
+  [/Edg\//, 'Edge'],
+  [/OPR\//, 'Opera'],
+  [/Chrome\//, 'Chrome'],
+  [/Firefox\//, 'Firefox'],
+  [/Version\/[\d.]+.*Safari\//, 'Safari'],
+  [/curl\//, 'curl'],
+]
+
+const systemPatterns: Array<[RegExp, string]> = [
+  [/iPhone|iPad|iPod/, 'iOS'],
+  [/Android/, 'Android'],
+  [/Mac OS X/, 'macOS'],
+  [/Windows/, 'Windows'],
+  [/CrOS/, 'ChromeOS'],
+  [/Linux/, 'Linux'],
+]
+
+function deviceName(userAgent: string | null): string {
+  if (userAgent === null || userAgent === '') {
+    return t('admin.sessions.unknownDevice')
+  }
+  const browser = browserPatterns.find(([pattern]) => pattern.test(userAgent))?.[1]
+  const system = systemPatterns.find(([pattern]) => pattern.test(userAgent))?.[1]
+  if (browser && system) {
+    return t('admin.sessions.deviceOn', { browser, os: system })
+  }
+  return browser ?? system ?? t('admin.sessions.unknownDevice')
 }
 
 async function revoke() {
@@ -193,15 +223,19 @@ async function revoke() {
 
     <template v-else>
       <Card>
-        <Table>
+        <Table class="min-w-[680px] table-fixed sm:min-w-full">
           <TableHeader>
             <TableRow>
-              <TableHead>{{ t('admin.sessions.table.user') }}</TableHead>
-              <TableHead>{{ t('admin.sessions.table.device') }}</TableHead>
-              <TableHead>{{ t('admin.sessions.table.auth') }}</TableHead>
-              <TableHead>{{ t('admin.sessions.table.times') }}</TableHead>
-              <TableHead>{{ t('admin.sessions.table.status') }}</TableHead>
-              <TableHead class="text-right">
+              <TableHead class="w-[28%]">
+                {{ t('admin.sessions.table.session') }}
+              </TableHead>
+              <TableHead class="w-[36%]">
+                {{ t('admin.sessions.table.device') }}
+              </TableHead>
+              <TableHead class="w-[24%]">
+                {{ t('admin.sessions.table.times') }}
+              </TableHead>
+              <TableHead class="w-[12%] text-right">
                 {{ t('admin.common.actions') }}
               </TableHead>
             </TableRow>
@@ -211,62 +245,69 @@ async function revoke() {
               v-for="session in sessions"
               :key="session.id"
             >
-              <TableCell>
-                <div class="space-y-0.5">
-                  <p class="font-medium">
-                    {{ session.userEmail }}
-                  </p>
-                  <p class="text-xs text-muted-foreground">
+              <TableCell class="align-top whitespace-normal">
+                <p class="font-medium break-all">
+                  {{ session.userEmail }}
+                </p>
+                <div class="mt-1 flex flex-wrap items-center gap-2">
+                  <Badge :variant="statusVariant(sessionStatus(session))">
+                    {{ t(`admin.sessions.status.${sessionStatus(session)}`) }}
+                  </Badge>
+                  <span class="text-xs text-muted-foreground">
                     {{ session.ip ?? t('admin.sessions.unknownIp') }}
-                  </p>
+                  </span>
                 </div>
               </TableCell>
-              <TableCell>
-                <span
-                  class="block max-w-xs truncate text-xs"
-                  :title="session.userAgent ?? ''"
+              <TableCell class="align-top whitespace-normal">
+                <p class="text-sm">
+                  {{ deviceName(session.userAgent) }}
+                </p>
+                <p
+                  v-if="session.userAgent"
+                  class="mt-0.5 truncate text-xs text-muted-foreground"
+                  :title="session.userAgent"
                 >
-                  {{ session.userAgent ?? t('admin.sessions.unknownDevice') }}
-                </span>
-              </TableCell>
-              <TableCell>
-                <div class="space-y-1">
-                  <div
-                    v-if="session.amr.length > 0"
-                    class="flex flex-wrap gap-1"
+                  {{ session.userAgent }}
+                </p>
+                <div class="mt-1.5 flex flex-wrap items-center gap-1">
+                  <Badge
+                    v-for="method in session.amr"
+                    :key="method"
+                    variant="outline"
                   >
-                    <Badge
-                      v-for="method in session.amr"
-                      :key="method"
-                      variant="outline"
-                    >
-                      {{ method }}
-                    </Badge>
-                  </div>
+                    {{ method }}
+                  </Badge>
                   <span
-                    v-else
+                    v-if="session.amr.length === 0"
                     class="text-xs text-muted-foreground"
-                  >{{ t('admin.common.none') }}</span>
-                  <p
+                  >
+                    {{ t('admin.common.none') }}
+                  </span>
+                  <span
                     v-if="session.acr"
-                    class="text-xs text-muted-foreground"
+                    class="font-mono text-[11px] break-all text-muted-foreground"
                   >
                     {{ session.acr }}
-                  </p>
+                  </span>
                 </div>
               </TableCell>
-              <TableCell class="whitespace-nowrap text-xs text-muted-foreground">
-                <p>{{ t('admin.sessions.created') }}: {{ formatDate(session.createdAt) }}</p>
-                <p>{{ t('admin.sessions.authTime') }}: {{ formatDate(session.authTime) }}</p>
-                <p>{{ t('admin.sessions.lastSeen') }}: {{ formatDate(session.lastSeenAt) }}</p>
-                <p>{{ t('admin.sessions.expires') }}: {{ formatDate(session.expiresAt) }}</p>
+              <TableCell class="align-top whitespace-normal">
+                <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs">
+                  <dt class="text-muted-foreground">
+                    {{ t('admin.sessions.authTime') }}
+                  </dt>
+                  <dd>{{ formatCompactDate(session.authTime) }}</dd>
+                  <dt class="text-muted-foreground">
+                    {{ t('admin.sessions.lastSeen') }}
+                  </dt>
+                  <dd>{{ formatCompactDate(session.lastSeenAt) }}</dd>
+                  <dt class="text-muted-foreground">
+                    {{ t('admin.sessions.expires') }}
+                  </dt>
+                  <dd>{{ formatCompactDate(session.expiresAt) }}</dd>
+                </dl>
               </TableCell>
-              <TableCell>
-                <Badge :variant="statusVariant(sessionStatus(session))">
-                  {{ t(`admin.sessions.status.${sessionStatus(session)}`) }}
-                </Badge>
-              </TableCell>
-              <TableCell class="text-right">
+              <TableCell class="align-top text-right">
                 <Button
                   type="button"
                   variant="outline"
