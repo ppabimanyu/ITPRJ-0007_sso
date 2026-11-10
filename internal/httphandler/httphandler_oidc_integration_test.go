@@ -26,6 +26,7 @@ type oidcParams struct {
 	state       string
 	nonce       string
 	prompt      string
+	maxAge      string
 }
 
 func (it *integration) ensureSigningKey(t *testing.T, realm *domain.Realm) {
@@ -137,6 +138,9 @@ func (it *integration) beginAuthorize(t *testing.T, client *http.Client, params 
 	}
 	if params.prompt != "" {
 		values.Set("prompt", params.prompt)
+	}
+	if params.maxAge != "" {
+		values.Set("max_age", params.maxAge)
 	}
 	request, err := http.NewRequest(http.MethodGet, it.server.URL+"/realms/default/authorize?"+values.Encode(), nil)
 	if err != nil {
@@ -824,6 +828,62 @@ func TestIntegrationOIDCPromptNone(t *testing.T) {
 	}
 	if location.Query().Get("state") != params.state {
 		t.Errorf("prompt=none error redirect lost state")
+	}
+}
+
+func TestIntegrationOIDCMaxAge(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	it.ensureSigningKey(t, realm)
+	email := "max-age-" + uuid.NewString() + "@example.com"
+	password := "correct horse battery staple"
+	user := it.createUser(t, realm, email, password, true)
+	client, _ := it.createOIDCClient(t, realm, domain.ClientTypePublic, false, "")
+	httpClient := it.loginForOIDC(t, email, password)
+
+	if _, err := it.db.Pool.Exec(context.Background(),
+		`UPDATE session SET auth_time = now() - interval '10 seconds' WHERE user_id = $1::text::uuid`,
+		string(user.ID)); err != nil {
+		t.Fatalf("age the session: %v", err)
+	}
+
+	base := oidcParams{
+		clientID:    client.ClientID,
+		redirectURI: "http://localhost:5173/callback",
+		verifier:    "verifier-" + uuid.NewString() + "-0123456789",
+		scope:       "openid",
+		state:       "max-age",
+	}
+
+	stale := base
+	stale.prompt = "none"
+	stale.maxAge = "1"
+	resp, body := it.beginAuthorize(t, httpClient, stale)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("stale max_age = %d, body = %s", resp.StatusCode, body)
+	}
+	location, err := url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if location.Query().Get("error") != domain.OAuthLoginRequired {
+		t.Fatalf("stale max_age error = %q", location.Query().Get("error"))
+	}
+
+	fresh := base
+	fresh.prompt = "none"
+	fresh.maxAge = "60"
+	fresh.state = "max-age-ok"
+	resp, body = it.beginAuthorize(t, httpClient, fresh)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("fresh max_age = %d, body = %s", resp.StatusCode, body)
+	}
+	location, err = url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if location.Query().Get("code") == "" {
+		t.Fatalf("fresh max_age did not issue a code: %s", resp.Header.Get("Location"))
 	}
 }
 
