@@ -20,7 +20,7 @@ lint:
 
 # Playwright smoke: starts its own isolated stack on :8080.
 e2e:
-	cd web && npm run e2e
+	cd web && pnpm run e2e
 
 # Runs against DATABASE_URL from the shell or .env.
 migrate:
@@ -39,8 +39,8 @@ bootstrap:
 
 # Build the SPA and embed it in the Go binary. Requires Node.js 22 or newer.
 web-build:
-	cd web && npm ci
-	cd web && npm run build
+	cd web && pnpm install --frozen-lockfile
+	cd web && pnpm run build
 	@find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete
 	@cp -R web/dist/. internal/webui/dist/
 

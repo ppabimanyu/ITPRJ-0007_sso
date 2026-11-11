@@ -57,9 +57,9 @@ docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U sso -d "$E2E_DB" \
   -c "UPDATE client SET third_party = true WHERE client_id = 'sample-spa'"
 
 if [ ! -d web/node_modules ]; then
-  (cd web && npm ci)
+  (cd web && pnpm install --frozen-lockfile)
 fi
-(cd web && npm run build)
+(cd web && pnpm run build)
 
 mkdir -p internal/webui/dist
 find internal/webui/dist -mindepth 1 ! -name .gitkeep -delete

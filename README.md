@@ -18,6 +18,7 @@ The SPA login and consent screens for the OIDC redirect are owned separately
 - Docker with Compose v2
 - `golangci-lint` v2 for `make lint`
 - Node.js 22 or newer for SPA development and `make web-build`
+- pnpm 12 for the web toolchain (`packageManager` pins `pnpm@12.16.1`)
 
 The Go build and the shipped binary do not need Node. A fresh clone embeds a
 small built-in "UI not built" page until you build the SPA.
@@ -327,17 +328,21 @@ The server reads `.env` when present and does not override exported variables.
 ## SPA development
 
 The SPA lives in `web/` and uses Vite, Vue 3, TypeScript, vue-router, TanStack
-Query, vue-i18n (`en` and `id`, browser default), and Tailwind CSS v3 with
+Query, vue-i18n (`en` and `id`, browser default), and Tailwind CSS v4 with
 shadcn-vue conventions.
 
 ```sh
 cd web
-npm install      # install dependencies from the committed lockfile
-npm run dev      # http://localhost:5173, proxies /api and /healthz to :8080
-npm run lint
-npm run typecheck
-npm run build    # writes web/dist
+pnpm install --frozen-lockfile  # install dependencies from the committed lockfile
+pnpm run dev                    # http://localhost:5173, proxies /api and /healthz to :8080
+pnpm run lint
+pnpm run typecheck
+pnpm run build                  # writes web/dist
 ```
+
+pnpm 12 enforces a 24-hour minimum release age. When you add or update a
+dependency, pin a version that published at least a day ago, or the install
+fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`.
 
 `VITE_API_BASE_URL` defaults to empty, so the SPA calls the API on its own
 origin. Set it to an absolute origin when the SPA is served from a different
@@ -350,8 +355,8 @@ make web-build
 make build
 ```
 
-`make web-build` runs `npm ci`, builds `web/dist`, and replaces the contents of
-`internal/webui/dist`. The Go build embeds that directory. Hashed assets are
+`make web-build` runs `pnpm install --frozen-lockfile`, builds `web/dist`, and
+replaces the contents of `internal/webui/dist`. The Go build embeds that directory. Hashed assets are
 not tracked, so only `internal/webui/dist/.gitkeep` lives in the repository.
 
 ## Ports
@@ -406,10 +411,10 @@ go test ./...
 golangci-lint run
 
 cd web
-npm ci
-npm run lint
-npm run typecheck
-npm run build
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm run typecheck
+pnpm run build
 
 docker compose config
 ```
