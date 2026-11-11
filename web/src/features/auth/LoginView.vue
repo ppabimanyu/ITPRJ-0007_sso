@@ -59,7 +59,6 @@ const challengeForm = reactive({
   recoveryCode: '',
 })
 const failedAttempts = ref(0)
-const codeInput = ref<{ focus: () => void } | null>(null)
 
 const challengeCode = computed({
   get: () => challengeForm.code,
@@ -199,7 +198,8 @@ function nextPageQuery(): Record<string, string> {
 
 async function focusChallengeCode() {
   await nextTick()
-  codeInput.value?.focus()
+  const id = challengeMode.value === 'totp' ? 'login-mfa-code' : 'login-mfa-recovery'
+  document.getElementById(id)?.focus()
 }
 
 async function submitChallenge() {
@@ -289,7 +289,6 @@ async function submit() {
   >
     <Alert
       v-if="notice"
-      variant="success"
     >
       <AlertDescription>{{ notice }}</AlertDescription>
     </Alert>
@@ -349,7 +348,6 @@ async function submit() {
             <Label for="login-mfa-code">{{ t('auth.mfa.code') }}</Label>
             <Input
               id="login-mfa-code"
-              ref="codeInput"
               v-model="challengeCode"
               inputmode="numeric"
               autocomplete="one-time-code"
@@ -378,7 +376,6 @@ async function submit() {
             <Label for="login-mfa-recovery">{{ t('auth.mfa.recoveryCode') }}</Label>
             <Input
               id="login-mfa-recovery"
-              ref="codeInput"
               v-model="challengeForm.recoveryCode"
               autocomplete="one-time-code"
               autocapitalize="characters"

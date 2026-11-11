@@ -18,7 +18,7 @@ test('admin creates a user from the users screen', async ({ page }) => {
   await dialog.getByLabel('Full name', { exact: true }).fill('E2E User')
   await dialog.getByRole('button', { name: 'Create user', exact: true }).click()
 
-  await expect(dialog.getByRole('heading', { name: 'User created', exact: true })).toBeVisible()
+  await expect(dialog.getByText('User created', { exact: true })).toBeVisible()
   await dialog.getByRole('button', { name: 'Done', exact: true }).click()
 
   await expect(page.getByRole('row').filter({ hasText: email })).toBeVisible()

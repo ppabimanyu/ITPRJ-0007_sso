@@ -39,7 +39,6 @@ const startError = ref<unknown>(null)
 const confirmError = ref<unknown>(null)
 const copied = ref<'secret' | 'uri' | null>(null)
 const copyFailed = ref(false)
-const codeInput = ref<{ focus: () => void } | null>(null)
 const form = reactive({ code: '' })
 
 const code = computed({
@@ -66,6 +65,11 @@ const confirmMessage = computed(() => {
 
 onMounted(begin)
 
+async function focusCode() {
+  await nextTick()
+  document.getElementById('mfa-enroll-code')?.focus()
+}
+
 async function begin() {
   phase.value = 'starting'
   startError.value = null
@@ -74,8 +78,7 @@ async function begin() {
     secret.value = result.secret
     otpauthUri.value = result.otpauthUri
     phase.value = 'confirm'
-    await nextTick()
-    codeInput.value?.focus()
+    await focusCode()
   } catch (error) {
     if (isApiError(error) && error.status === 409) {
       phase.value = 'already'
@@ -99,8 +102,7 @@ async function submit() {
       return
     }
     confirmError.value = error
-    await nextTick()
-    codeInput.value?.focus()
+    await focusCode()
   }
 }
 
@@ -220,7 +222,6 @@ function complete() {
         <Label for="mfa-enroll-code">{{ t('auth.enroll.codeLabel') }}</Label>
         <Input
           id="mfa-enroll-code"
-          ref="codeInput"
           v-model="code"
           inputmode="numeric"
           autocomplete="one-time-code"

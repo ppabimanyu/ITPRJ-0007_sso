@@ -149,7 +149,6 @@ async function rotate() {
 
       <Alert
         v-if="saved"
-        variant="success"
       >
         <AlertDescription>{{ t('admin.clients.detail.saved') }}</AlertDescription>
       </Alert>

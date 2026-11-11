@@ -1,31 +1,32 @@
 <script setup lang="ts">
-import type { DropdownMenuSubTriggerProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { ChevronRight } from "@lucide/vue"
-import { reactiveOmit } from "@vueuse/core"
-import { cn } from "cn"
+import type { DropdownMenuSubTriggerProps } from 'reka-ui'
+
+import type { HTMLAttributes } from 'vue'
+import { ChevronRightIcon } from '@lucide/vue'
+import { reactiveOmit } from '@vueuse/core'
+import { cn } from 'cn'
 import {
   DropdownMenuSubTrigger,
   useForwardProps,
-} from "reka-ui"
+} from 'reka-ui'
 
-const props = defineProps<DropdownMenuSubTriggerProps & { class?: HTMLAttributes["class"], inset?: boolean }>()
+const props = defineProps<DropdownMenuSubTriggerProps & { class?: HTMLAttributes['class'], inset?: boolean }>()
 
-const delegatedProps = reactiveOmit(props, "class", "inset")
+const delegatedProps = reactiveOmit(props, 'class', 'inset')
 const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
   <DropdownMenuSubTrigger
     data-slot="dropdown-menu-sub-trigger"
-    v-bind="forwardedProps"
     :data-inset="inset ? '' : undefined"
+    v-bind="forwardedProps"
     :class="cn(
-      `relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground data-[variant=destructive]:*:[svg]:text-destructive!`,
+      'focus:bg-accent focus:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground gap-2 min-h-7 rounded-xl px-2 py-1.5 text-sm data-inset:pl-7 [&_svg:not([class*=size-])]:size-4 flex cursor-default items-center outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:shrink-0',
       props.class,
     )"
   >
     <slot />
-    <ChevronRight class="ml-auto size-4" />
+    <ChevronRightIcon class="cn-rtl-flip ml-auto" />
   </DropdownMenuSubTrigger>
 </template>

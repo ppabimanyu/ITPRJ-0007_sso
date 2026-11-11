@@ -229,7 +229,9 @@ func Recoverer(next http.Handler) http.Handler {
 
 // SecurityHeaders applies the baseline header set from ARCHITECTURE §10.
 func SecurityHeaders(production bool) func(http.Handler) http.Handler {
-	const csp = "default-src 'self'; script-src 'self'; style-src 'self'; " +
+	const csp = "default-src 'self'; script-src 'self'; " +
+		"style-src 'self' https://fonts.googleapis.com; " +
+		"font-src 'self' https://fonts.gstatic.com; " +
 		"img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; " +
 		"base-uri 'none'; form-action 'self'"
 	return func(next http.Handler) http.Handler {
