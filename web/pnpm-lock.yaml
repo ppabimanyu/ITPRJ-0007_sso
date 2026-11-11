@@ -181,6 +181,9 @@ importers:
       cn:
         specifier: ^0.5.2
         version: 0.5.2
+      qrcode.vue:
+        specifier: ^3.11.0
+        version: 3.11.0(vue@3.5.45(typescript@5.9.3))
       reka-ui:
         specifier: ^2.11.0
         version: 2.11.0(vue@3.5.45(typescript@5.9.3))
@@ -2041,6 +2044,11 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  qrcode.vue@3.11.0:
+    resolution: {integrity: sha512-PnaO9yqcEVsH9euUmo4Nn0JZMkNwk4u6fDUosKjDTXv2Cgv7rHZhr2D8Iq54clBvSycOESwgUE/rw/tBRBjIVg==}
+    peerDependencies:
+      vue: ^3.0.0
 
   qs@6.17.1:
     resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
@@ -4182,6 +4190,10 @@ snapshots:
       ipaddr.js: 1.9.1
 
   punycode@2.3.1: {}
+
+  qrcode.vue@3.11.0(vue@3.5.45(typescript@5.9.3)):
+    dependencies:
+      vue: 3.5.45(typescript@5.9.3)
 
   qs@6.17.1:
     dependencies:
