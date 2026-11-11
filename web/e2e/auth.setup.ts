@@ -51,6 +51,10 @@ async function enrollAdmin(page: Page, state: TotpState | null) {
     return
   }
 
+  await expect(
+    page.getByRole('img', { name: 'QR code for authenticator setup', exact: true }),
+  ).toBeVisible()
+
   const secret = (await secretLocator.textContent())?.trim() ?? ''
   if (secret === '') {
     throw new Error('MFA enrollment did not display a setup key')
