@@ -201,7 +201,7 @@ Prioritas: **P0** wajib untuk rilis, **P1** sebaiknya ada, **P2** ditunda.
 | ID | Prioritas | Requirement |
 |---|---|---|
 | FR-OID-01 | P0 | Discovery doc valid di `/realms/{realm}/.well-known/openid-configuration`; nilai `response_types_supported`, `grant_types_supported`, `scopes_supported`, `claims_supported`, `code_challenge_methods_supported` konsisten dengan implementasi dan diuji otomatis. |
-| FR-OID-02 | P0 | Authorization code flow dengan PKCE S256 wajib untuk semua client; `plain` ditolak. |
+| FR-OID-02 | P0 | Authorization code flow dengan PKCE S256 wajib untuk public client; confidential client boleh memakai code flow tanpa PKCE. `plain` selalu ditolak. |
 | FR-OID-03 | P0 | Redirect URI dicocokkan exact (termasuk port); tanpa wildcard; `http://localhost` hanya diizinkan di dev. |
 | FR-OID-04 | P0 | `state` dan `nonce` diteruskan dan divalidasi; `nonce` disimpan di auth request dan dimasukkan ke ID token. |
 | FR-OID-05 | P0 | Token endpoint mendukung `authorization_code`, `refresh_token`, `client_credentials`. |

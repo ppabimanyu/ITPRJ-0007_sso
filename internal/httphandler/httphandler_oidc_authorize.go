@@ -88,7 +88,12 @@ func (h *handlers) authorize(w http.ResponseWriter, r *http.Request) {
 
 	challenge := query.Get("code_challenge")
 	method := query.Get("code_challenge_method")
-	if !validPKCEVerifier(challenge) || method != domain.CodeChallengeMethodS256 {
+	if challenge != "" || method != "" {
+		if !validPKCEVerifier(challenge) || method != domain.CodeChallengeMethodS256 {
+			deny(domain.OAuthInvalidRequest, "PKCE with S256 is required", "pkce")
+			return
+		}
+	} else if client.Type == domain.ClientTypePublic {
 		deny(domain.OAuthInvalidRequest, "PKCE with S256 is required", "pkce")
 		return
 	}

@@ -366,7 +366,7 @@ Anti-enumerasi: login, forgot-password, resend invite, dan verify selalu memberi
 
 ## 10. Checklist Keamanan
 
-- PKCE S256 wajib; `plain` ditolak; code single-use dan terikat client/redirect.
+- PKCE S256 wajib untuk public client; confidential client boleh tanpa PKCE; `plain` ditolak; code single-use dan terikat client/redirect.
 - Redirect URI exact match; post-logout URI terdaftar; tolak open redirect.
 - `state`/`nonce` divalidasi; `nonce` masuk ID token.
 - CSRF double-submit + Origin check untuk endpoint ber-cookie dan pra-sesi.
