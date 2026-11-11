@@ -73,11 +73,12 @@ Timeline di atas adalah baseline. Per 9 November 2026, M1–M4 sudah merge; sisa
 | M2 Auth core | 38 | ✅ | PR #2 |
 | M3 OIDC | 52 | ✅ | PR #3 |
 | M4 Admin & MFA | 40 | ✅ | PR #4 |
-| **M4.5 UI Platform** | **19** | ⬜ | Playwright smoke → Tailwind 4 → shadcn-vue |
-| M5 Hardening | 28 | ⬜ | M5-07 memperluas suite Playwright |
-| M6 Rilis | 20 | ⬜ | Conformance dan regresi dijalankan ulang setelah refactor UI |
+| **M4.5 UI Platform** | **19** | ✅ | PR #6 |
+| M5 Hardening | 28 | ✅ | PR #7 |
+| M6 Rilis | 20 | 🔄 | Conformance dan deploy menunggu target eksternal |
 
-Sisa pekerjaan: 67 jam (M4.5 19 + M5 28 + M6 20). Kapasitas tersisa 60 jam (240 − 180), sehingga rilis bergeser ±7 jam ≈ 1 hari kerja. Buffer 12 jam tetap dialokasikan untuk temuan conformance.
+Sisa pekerjaan M6: conformance Basic OP, drill staging, deploy produksi dan
+smoke test, lalu sign-off. M1 sampai M5 selesai.
 
 ### Alokasi jam per milestone
 

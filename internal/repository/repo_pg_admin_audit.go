@@ -25,22 +25,22 @@ func (r *PgAdminAuditRepository) ListFiltered(ctx context.Context, realmID domai
 		limit = 50
 	}
 	args := []any{string(realmID)}
-	clauses := []string{"realm_id = $1::text::uuid"}
+	clauses := []string{"ae.realm_id = $1::text::uuid"}
 	if filter.From != nil {
 		args = append(args, *filter.From)
-		clauses = append(clauses, fmt.Sprintf("created_at >= $%d::timestamptz", len(args)))
+		clauses = append(clauses, fmt.Sprintf("ae.created_at >= $%d::timestamptz", len(args)))
 	}
 	if filter.To != nil {
 		args = append(args, *filter.To)
-		clauses = append(clauses, fmt.Sprintf("created_at <= $%d::timestamptz", len(args)))
+		clauses = append(clauses, fmt.Sprintf("ae.created_at <= $%d::timestamptz", len(args)))
 	}
 	if filter.Type != "" {
 		args = append(args, filter.Type)
-		clauses = append(clauses, fmt.Sprintf("type = $%d", len(args)))
+		clauses = append(clauses, fmt.Sprintf("ae.type = $%d", len(args)))
 	}
 	if filter.ActorID != "" {
 		args = append(args, filter.ActorID)
-		clauses = append(clauses, fmt.Sprintf("actor_id = $%d", len(args)))
+		clauses = append(clauses, fmt.Sprintf("ae.actor_id = $%d", len(args)))
 	}
 	if filter.After != "" {
 		createdAt, id, err := decodeAdminCursor(filter.After)
@@ -50,12 +50,14 @@ func (r *PgAdminAuditRepository) ListFiltered(ctx context.Context, realmID domai
 		args = append(args, createdAt, id)
 		index := len(args)
 		clauses = append(clauses, fmt.Sprintf(
-			"(created_at, id) < ($%d::timestamptz, $%d::text::uuid)", index-1, index))
+			"(ae.created_at, ae.id) < ($%d::timestamptz, $%d::text::uuid)", index-1, index))
 	}
 	args = append(args, limit+1)
-	query := `SELECT id::text, type, actor_type, actor_id, metadata, created_at
-		FROM audit_event WHERE ` + strings.Join(clauses, " AND ") + `
-		ORDER BY created_at DESC, id DESC LIMIT $` + fmt.Sprint(len(args))
+	query := `SELECT ae.id::text, ae.type, ae.actor_type, ae.actor_id, ae.metadata, ae.created_at, actor.email
+		FROM audit_event ae
+		LEFT JOIN "user" actor ON actor.id::text = ae.actor_id AND ae.actor_type IN ('user', 'admin')
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY ae.created_at DESC, ae.id DESC LIMIT $` + fmt.Sprint(len(args))
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -67,7 +69,7 @@ func (r *PgAdminAuditRepository) ListFiltered(ctx context.Context, realmID domai
 	for rows.Next() {
 		var view domain.AuditEventView
 		if err := rows.Scan(&view.ID, &view.Type, &view.ActorType, &view.ActorID,
-			&view.Metadata, &view.CreatedAt); err != nil {
+			&view.Metadata, &view.CreatedAt, &view.ActorEmail); err != nil {
 			return nil, "", mapError(err)
 		}
 		if len(view.Metadata) == 0 {

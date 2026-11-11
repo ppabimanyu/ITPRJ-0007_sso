@@ -76,6 +76,34 @@ jobs:
   go:
     name: Go
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sso
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sso_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sso -d sso_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      mailhog:
+        image: mailhog/mailhog:v1.0.1
+        ports:
+          - 1025:1025
+          - 8025:8025
     steps:
       - uses: actions/checkout@v4
 
@@ -124,4 +152,9 @@ jobs:
         run: go build ./...
 
       - name: Test
+        env:
+          TEST_DATABASE_URL: postgres://sso:postgres@localhost:5432/sso_test?sslmode=disable
+          TEST_REDIS_URL: redis://localhost:6379/0
+          TEST_SMTP_ADDR: localhost:1025
+          TEST_MAILHOG_URL: http://localhost:8025
         run: go test ./...

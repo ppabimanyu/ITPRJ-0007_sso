@@ -12,6 +12,12 @@ import (
 func (h *handlers) userinfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	raw, ok := bearerToken(r)
+	if !ok && r.Method == http.MethodPost {
+		if err := r.ParseForm(); err == nil {
+			raw = strings.TrimSpace(r.PostForm.Get("access_token"))
+			ok = raw != ""
+		}
+	}
 	if !ok {
 		writeBearerError(w, http.StatusUnauthorized, "a bearer access token is required")
 		return

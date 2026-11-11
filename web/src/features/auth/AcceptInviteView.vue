@@ -27,7 +27,7 @@ const errorMessage = computed(() =>
     ? ''
     : generalMessage(error.value, { badRequest: 'errors.invalidToken' }),
 )
-const passwordError = computed(() => fieldErrors(error.value).password ?? '')
+const passwordError = computed(() => fieldErrors(error.value).new_password ?? '')
 
 async function submit() {
   mismatch.value = ''

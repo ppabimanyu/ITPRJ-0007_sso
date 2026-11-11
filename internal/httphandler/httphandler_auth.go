@@ -12,7 +12,6 @@ import (
 	"github.com/ppa/itprj-0007-sso/internal/infra/logger"
 	"github.com/ppa/itprj-0007-sso/internal/pkg"
 	"github.com/ppa/itprj-0007-sso/internal/pkg/csrf"
-	"github.com/ppa/itprj-0007-sso/internal/pkg/password"
 )
 
 func (h *handlers) csrfToken(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +51,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipDecision, err := h.deps.RateLimit.Allow(r.Context(), "login_ip", clientIP(r), loginIPLimit, loginIPWindow)
+	ipDecision, err := h.deps.RateLimit.Allow(r.Context(), "login_ip", clientIP(r), h.loginIPLimit(), loginIPWindow)
 	if err != nil {
 		h.logInternal(r.Context(), "rate_limit_failed", err)
 		WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
@@ -69,7 +68,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 	user, lookupErr := h.deps.Users.GetByEmail(r.Context(), realm.ID, email)
 	if errors.Is(lookupErr, domain.ErrNotFound) {
 		accountDecision, limitErr := h.deps.RateLimit.Allow(r.Context(), "login_account",
-			pkg.SHA256Hex(email), loginAccountLimit, loginAccountWindow)
+			pkg.SHA256Hex(email), h.loginAccountLimit(), loginAccountWindow)
 		if limitErr != nil {
 			h.logInternal(r.Context(), "rate_limit_failed", limitErr)
 			WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
@@ -82,7 +81,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 				"too many login attempts")
 			return
 		}
-		password.VerifyDummy(request.Password)
+		h.verifyDummyPassword(r.Context(), request.Password)
 		h.recordLoginFailure(r, realm, nil, "invalid_credentials", false)
 		WriteProblem(w, r, http.StatusUnauthorized, domain.CodeInvalidCredentials,
 			"invalid email or password")
@@ -98,7 +97,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 	credential, err := h.deps.Credentials.GetByUserID(r.Context(), user.ID)
 	if errors.Is(err, domain.ErrNotFound) {
 		logger.FromContext(r.Context()).Warn("login_rejected", "reason", "credential_missing")
-		password.VerifyDummy(request.Password)
+		h.verifyDummyPassword(r.Context(), request.Password)
 		h.recordLoginFailure(r, realm, user, "invalid_credentials", false)
 		WriteProblem(w, r, http.StatusUnauthorized, domain.CodeInvalidCredentials,
 			"invalid email or password")
@@ -121,7 +120,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	accountDecision, err := h.deps.RateLimit.Allow(r.Context(), "login_account",
-		pkg.SHA256Hex(email), loginAccountLimit, loginAccountWindow)
+		pkg.SHA256Hex(email), h.loginAccountLimit(), loginAccountWindow)
 	if err != nil {
 		h.logInternal(r.Context(), "rate_limit_failed", err)
 		WriteProblem(w, r, http.StatusServiceUnavailable, domain.CodeServiceUnavailable,
@@ -135,7 +134,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	valid, err := password.Verify(request.Password, credential.PasswordHash)
+	valid, err := h.verifyPassword(r.Context(), request.Password, credential.PasswordHash)
 	if err != nil {
 		h.logInternal(r.Context(), "password_verify_failed", err)
 		h.recordLoginFailure(r, realm, user, "invalid_credentials", false)

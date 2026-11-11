@@ -16,18 +16,19 @@ const (
 
 // OAuth error codes used by the OIDC endpoints.
 const (
-	OAuthInvalidRequest       = "invalid_request"
-	OAuthInvalidClient        = "invalid_client"
-	OAuthInvalidGrant         = "invalid_grant"
-	OAuthUnauthorizedClient   = "unauthorized_client"
-	OAuthUnsupportedGrantType = "unsupported_grant_type"
-	OAuthUnsupportedResponse  = "unsupported_response_type"
-	OAuthInvalidScope         = "invalid_scope"
-	OAuthAccessDenied         = "access_denied"
-	OAuthLoginRequired        = "login_required"
-	OAuthInteractionRequired  = "interaction_required"
-	OAuthInvalidToken         = "invalid_token"
-	OAuthServerError          = "server_error"
+	OAuthInvalidRequest         = "invalid_request"
+	OAuthInvalidClient          = "invalid_client"
+	OAuthInvalidGrant           = "invalid_grant"
+	OAuthUnauthorizedClient     = "unauthorized_client"
+	OAuthUnsupportedGrantType   = "unsupported_grant_type"
+	OAuthUnsupportedResponse    = "unsupported_response_type"
+	OAuthInvalidScope           = "invalid_scope"
+	OAuthAccessDenied           = "access_denied"
+	OAuthLoginRequired          = "login_required"
+	OAuthInteractionRequired    = "interaction_required"
+	OAuthInvalidToken           = "invalid_token"
+	OAuthServerError            = "server_error"
+	OAuthTemporarilyUnavailable = "temporarily_unavailable"
 )
 
 // Backchannel logout event identifier from RFC 8055.

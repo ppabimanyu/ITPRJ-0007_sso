@@ -26,6 +26,8 @@ type oidcParams struct {
 	state       string
 	nonce       string
 	prompt      string
+	maxAge      string
+	noPKCE      bool
 }
 
 func (it *integration) ensureSigningKey(t *testing.T, realm *domain.Realm) {
@@ -126,17 +128,22 @@ func (it *integration) form(t *testing.T, client *http.Client, path string, valu
 func (it *integration) beginAuthorize(t *testing.T, client *http.Client, params oidcParams) (*http.Response, []byte) {
 	t.Helper()
 	values := url.Values{
-		"response_type":         {domain.ResponseTypeCode},
-		"client_id":             {params.clientID},
-		"redirect_uri":          {params.redirectURI},
-		"scope":                 {params.scope},
-		"state":                 {params.state},
-		"nonce":                 {params.nonce},
-		"code_challenge":        {pkceS256(params.verifier)},
-		"code_challenge_method": {domain.CodeChallengeMethodS256},
+		"response_type": {domain.ResponseTypeCode},
+		"client_id":     {params.clientID},
+		"redirect_uri":  {params.redirectURI},
+		"scope":         {params.scope},
+		"state":         {params.state},
+		"nonce":         {params.nonce},
+	}
+	if !params.noPKCE {
+		values.Set("code_challenge", pkceS256(params.verifier))
+		values.Set("code_challenge_method", domain.CodeChallengeMethodS256)
 	}
 	if params.prompt != "" {
 		values.Set("prompt", params.prompt)
+	}
+	if params.maxAge != "" {
+		values.Set("max_age", params.maxAge)
 	}
 	request, err := http.NewRequest(http.MethodGet, it.server.URL+"/realms/default/authorize?"+values.Encode(), nil)
 	if err != nil {
@@ -318,6 +325,11 @@ func TestIntegrationOIDCFullCodeFlow(t *testing.T) {
 	if userinfo["email"] != email {
 		t.Errorf("userinfo email = %v", userinfo["email"])
 	}
+	formResp, formBody := it.form(t, httpClient, "/realms/default/userinfo",
+		url.Values{"access_token": {tokens.AccessToken}}, nil)
+	if formResp.StatusCode != http.StatusOK {
+		t.Fatalf("userinfo with form body = %d, body = %s", formResp.StatusCode, formBody)
+	}
 
 	refreshResp, refreshBody := it.form(t, httpClient, "/realms/default/token", url.Values{
 		"grant_type":    {domain.GrantTypeRefreshToken},
@@ -376,6 +388,70 @@ func TestIntegrationOIDCFullCodeFlow(t *testing.T) {
 	}
 }
 
+func TestIntegrationOIDCConfidentialClientWithoutPKCE(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	it.ensureSigningKey(t, realm)
+	email := "no-pkce-" + uuid.NewString() + "@example.com"
+	password := "correct horse battery staple"
+	it.createUser(t, realm, email, password, true)
+	client, secret := it.createOIDCClient(t, realm, domain.ClientTypeConfidential, false, "")
+	httpClient := it.loginForOIDC(t, email, password)
+
+	params := oidcParams{
+		clientID:    client.ClientID,
+		redirectURI: "http://localhost:5173/callback",
+		scope:       "openid",
+		state:       "no-pkce",
+		noPKCE:      true,
+	}
+	code, _ := it.authorizationCode(t, httpClient, params)
+
+	tokenResp, tokenBody := it.form(t, httpClient, "/realms/default/token", url.Values{
+		"grant_type":    {domain.GrantTypeAuthorizationCode},
+		"code":          {code},
+		"redirect_uri":  {params.redirectURI},
+		"client_id":     {client.ClientID},
+		"client_secret": {secret},
+	}, nil)
+	if tokenResp.StatusCode != http.StatusOK {
+		t.Fatalf("token without PKCE = %d, body = %s", tokenResp.StatusCode, tokenBody)
+	}
+}
+
+func TestIntegrationOIDCPublicClientRequiresPKCE(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	it.ensureSigningKey(t, realm)
+	email := "public-no-pkce-" + uuid.NewString() + "@example.com"
+	password := "correct horse battery staple"
+	it.createUser(t, realm, email, password, true)
+	client, _ := it.createOIDCClient(t, realm, domain.ClientTypePublic, false, "")
+	httpClient := it.loginForOIDC(t, email, password)
+
+	params := oidcParams{
+		clientID:    client.ClientID,
+		redirectURI: "http://localhost:5173/callback",
+		scope:       "openid",
+		state:       "public-no-pkce",
+		noPKCE:      true,
+	}
+	resp, body := it.beginAuthorize(t, httpClient, params)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("public authorize without PKCE = %d, body = %s", resp.StatusCode, body)
+	}
+	location, err := url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if location.Query().Get("error") != domain.OAuthInvalidRequest {
+		t.Fatalf("public authorize error = %q", location.Query().Get("error"))
+	}
+	if !strings.Contains(location.Query().Get("error_description"), "PKCE") {
+		t.Fatalf("public authorize description = %q", location.Query().Get("error_description"))
+	}
+}
+
 func TestIntegrationOIDCClientCredentials(t *testing.T) {
 	it := newIntegration(t)
 	realm := it.createRealm(t)
@@ -418,6 +494,31 @@ func TestIntegrationOIDCClientCredentials(t *testing.T) {
 	}, nil)
 	if postResp.StatusCode != http.StatusOK {
 		t.Fatalf("client_secret_post = %d, body = %s", postResp.StatusCode, postBody)
+	}
+
+	previousLimit := tokenClientLimit
+	tokenClientLimit = 2
+	t.Cleanup(func() { tokenClientLimit = previousLimit })
+	limitedResp, limitedBody := it.form(t, httpClient, "/realms/default/token", url.Values{
+		"grant_type":    {domain.GrantTypeClientCredentials},
+		"client_id":     {client.ClientID},
+		"client_secret": {secret},
+		"scope":         {"openid"},
+	}, nil)
+	if limitedResp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("rate limited client credentials = %d, body = %s", limitedResp.StatusCode, limitedBody)
+	}
+	var limited struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(limitedBody, &limited); err != nil {
+		t.Fatalf("rate limit body: %v (%s)", err, limitedBody)
+	}
+	if limited.Error != domain.OAuthTemporarilyUnavailable {
+		t.Fatalf("rate limit error = %q", limited.Error)
+	}
+	if limitedResp.Header.Get("Retry-After") == "" {
+		t.Fatal("rate limit response is missing Retry-After")
 	}
 
 	introspectResp, introspectBody := it.form(t, httpClient, "/realms/default/introspect", url.Values{
@@ -799,5 +900,84 @@ func TestIntegrationOIDCPromptNone(t *testing.T) {
 	}
 	if location.Query().Get("state") != params.state {
 		t.Errorf("prompt=none error redirect lost state")
+	}
+}
+
+func TestIntegrationOIDCMaxAge(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	it.ensureSigningKey(t, realm)
+	email := "max-age-" + uuid.NewString() + "@example.com"
+	password := "correct horse battery staple"
+	user := it.createUser(t, realm, email, password, true)
+	client, _ := it.createOIDCClient(t, realm, domain.ClientTypePublic, false, "")
+	httpClient := it.loginForOIDC(t, email, password)
+
+	if _, err := it.db.Pool.Exec(context.Background(),
+		`UPDATE session SET auth_time = now() - interval '10 seconds' WHERE user_id = $1::text::uuid`,
+		string(user.ID)); err != nil {
+		t.Fatalf("age the session: %v", err)
+	}
+
+	base := oidcParams{
+		clientID:    client.ClientID,
+		redirectURI: "http://localhost:5173/callback",
+		verifier:    "verifier-" + uuid.NewString() + "-0123456789",
+		scope:       "openid",
+		state:       "max-age",
+	}
+
+	stale := base
+	stale.prompt = "none"
+	stale.maxAge = "1"
+	resp, body := it.beginAuthorize(t, httpClient, stale)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("stale max_age = %d, body = %s", resp.StatusCode, body)
+	}
+	location, err := url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if location.Query().Get("error") != domain.OAuthLoginRequired {
+		t.Fatalf("stale max_age error = %q", location.Query().Get("error"))
+	}
+
+	fresh := base
+	fresh.prompt = "none"
+	fresh.maxAge = "60"
+	fresh.state = "max-age-ok"
+	resp, body = it.beginAuthorize(t, httpClient, fresh)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("fresh max_age = %d, body = %s", resp.StatusCode, body)
+	}
+	location, err = url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if location.Query().Get("code") == "" {
+		t.Fatalf("fresh max_age did not issue a code: %s", resp.Header.Get("Location"))
+	}
+}
+
+func TestIntegrationClientCredentialsRejectsPublicClient(t *testing.T) {
+	it := newIntegration(t)
+	realm := it.createRealm(t)
+	client, _ := it.createOIDCClient(t, realm, domain.ClientTypePublic, false, "")
+
+	resp, body := it.form(t, it.client(t), "/realms/default/token", url.Values{
+		"grant_type": {domain.GrantTypeClientCredentials},
+		"client_id":  {client.ClientID},
+	}, nil)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("public client credentials = %d, body = %s", resp.StatusCode, body)
+	}
+	var oauth struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &oauth); err != nil {
+		t.Fatalf("body: %v (%s)", err, body)
+	}
+	if oauth.Error != domain.OAuthUnauthorizedClient {
+		t.Fatalf("error = %q", oauth.Error)
 	}
 }

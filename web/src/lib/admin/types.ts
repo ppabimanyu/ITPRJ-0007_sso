@@ -100,6 +100,7 @@ export interface AuditEvent {
   type: string
   actorType: string
   actorId: string | null
+  actorEmail: string | null
   metadata: unknown
   createdAt: string
 }
@@ -331,6 +332,7 @@ export function parseAuditEvent(value: unknown): AuditEvent {
     type: requireString(record, 'type'),
     actorType: requireString(record, 'actor_type'),
     actorId: readNullableString(record, 'actor_id'),
+    actorEmail: readNullableString(record, 'actor_email'),
     metadata: record.metadata ?? null,
     createdAt: requireString(record, 'created_at'),
   }
