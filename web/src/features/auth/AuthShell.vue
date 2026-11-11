@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 
 defineProps<{
   title: string
@@ -11,7 +11,7 @@ defineProps<{
   <section class="mx-auto w-full max-w-md space-y-6">
     <Card>
       <CardHeader>
-        <CardTitle>{{ title }}</CardTitle>
+        <h1 class="text-lg font-semibold tracking-tight">{{ title }}</h1>
         <CardDescription>{{ description }}</CardDescription>
       </CardHeader>
       <CardContent class="space-y-5">

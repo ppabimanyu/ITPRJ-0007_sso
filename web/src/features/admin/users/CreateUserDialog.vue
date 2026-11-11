@@ -88,7 +88,7 @@ async function submit() {
         v-if="created"
         class="space-y-4"
       >
-        <Alert variant="success">
+        <Alert>
           <AlertTitle>{{ t('admin.users.create.createdTitle') }}</AlertTitle>
           <AlertDescription>
             {{ t('admin.users.create.createdDescription', { email: created.email }) }}

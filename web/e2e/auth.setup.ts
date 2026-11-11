@@ -38,10 +38,7 @@ async function reauthenticateWithTotp(page: Page, state: TotpState) {
 
 async function enrollAdmin(page: Page, state: TotpState | null) {
   const secretLocator = page.locator('#mfa-enroll-secret')
-  const alreadyTitle = page.getByRole('heading', {
-    name: 'Two-step verification is already on',
-    exact: true,
-  })
+  const alreadyTitle = page.getByText('Two-step verification is already on', { exact: true })
   await expect(secretLocator.or(alreadyTitle)).toBeVisible({ timeout: 20_000 })
 
   if (await alreadyTitle.isVisible()) {
@@ -54,6 +51,10 @@ async function enrollAdmin(page: Page, state: TotpState | null) {
     return
   }
 
+  await expect(
+    page.getByRole('img', { name: 'QR code for authenticator setup', exact: true }),
+  ).toBeVisible()
+
   const secret = (await secretLocator.textContent())?.trim() ?? ''
   if (secret === '') {
     throw new Error('MFA enrollment did not display a setup key')
@@ -65,10 +66,7 @@ async function enrollAdmin(page: Page, state: TotpState | null) {
   await page.getByLabel('Authentication code').fill(totpCode(secret, step))
   await page.getByRole('button', { name: 'Confirm and enable' }).click()
 
-  const recoveryTitle = page.getByRole('heading', {
-    name: 'Save your recovery codes',
-    exact: true,
-  })
+  const recoveryTitle = page.getByText('Save your recovery codes', { exact: true })
   await expect(recoveryTitle.or(alreadyTitle)).toBeVisible({ timeout: 20_000 })
   if (await alreadyTitle.isVisible()) {
     await reauthenticateWithTotp(page, state)

@@ -62,4 +62,4 @@ if ! curl -fsS "http://localhost:${E2E_PORT}/healthz" >/dev/null 2>&1; then
 fi
 
 cd web
-E2E_BASE_URL="http://localhost:${E2E_PORT}" npx playwright test "$@"
+E2E_BASE_URL="http://localhost:${E2E_PORT}" pnpm exec playwright test "$@"

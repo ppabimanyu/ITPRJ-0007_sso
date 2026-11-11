@@ -79,7 +79,6 @@ async function submit() {
 
     <Alert
       v-if="saved"
-      variant="success"
     >
       <AlertDescription>{{ t('account.profile.saved') }}</AlertDescription>
     </Alert>

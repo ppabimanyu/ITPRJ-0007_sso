@@ -165,3 +165,25 @@ func lastJSONLine(t *testing.T, raw []byte) map[string]any {
 	}
 	return line
 }
+
+func TestSecurityHeadersAllowGoogleFonts(t *testing.T) {
+	handler := SecurityHeaders(false)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	for _, want := range []string{
+		"style-src 'self' https://fonts.googleapis.com",
+		"font-src 'self' https://fonts.gstatic.com",
+	} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("Content-Security-Policy = %q, missing %q", csp, want)
+		}
+	}
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
+	}
+}

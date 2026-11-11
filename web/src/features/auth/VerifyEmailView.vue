@@ -52,7 +52,6 @@ onMounted(() => {
 
     <Alert
       v-else-if="isSuccess"
-      variant="success"
     >
       <AlertTitle>{{ t('auth.verify.successTitle') }}</AlertTitle>
       <AlertDescription>{{ t('auth.verify.success') }}</AlertDescription>

@@ -98,7 +98,6 @@ onBeforeUnmount(() => {
 
     <Alert
       v-if="createdNotice"
-      variant="success"
     >
       <AlertDescription>
         {{ t('admin.clients.create.publicCreated', { name: createdNotice }) }}

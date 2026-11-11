@@ -132,7 +132,6 @@ async function save() {
     >
       <Alert
         v-if="saved"
-        variant="success"
       >
         <AlertDescription>{{ t('admin.settings.saved') }}</AlertDescription>
       </Alert>

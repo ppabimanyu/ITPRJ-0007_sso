@@ -51,7 +51,7 @@ async function submit() {
     :description="t('auth.reset.description')"
   >
     <template v-if="done">
-      <Alert variant="success">
+      <Alert>
         <AlertTitle>{{ t('auth.reset.successTitle') }}</AlertTitle>
         <AlertDescription>{{ t('auth.reset.success') }}</AlertDescription>
       </Alert>

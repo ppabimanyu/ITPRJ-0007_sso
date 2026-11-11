@@ -214,7 +214,6 @@ async function resendInvite() {
           <CardContent class="space-y-4">
             <Alert
               v-if="savedProfile"
-              variant="success"
             >
               <AlertDescription>{{ t('admin.users.detail.profileSaved') }}</AlertDescription>
             </Alert>
@@ -287,7 +286,6 @@ async function resendInvite() {
           <CardContent class="space-y-4">
             <Alert
               v-if="savedRoles"
-              variant="success"
             >
               <AlertDescription>{{ t('admin.users.detail.rolesSaved') }}</AlertDescription>
             </Alert>
@@ -354,13 +352,11 @@ async function resendInvite() {
         <CardContent class="space-y-4">
           <Alert
             v-if="resetSent"
-            variant="success"
           >
             <AlertDescription>{{ t('admin.users.detail.resetSent') }}</AlertDescription>
           </Alert>
           <Alert
             v-if="inviteSent"
-            variant="success"
           >
             <AlertDescription>{{ t('admin.users.detail.inviteSent') }}</AlertDescription>
           </Alert>

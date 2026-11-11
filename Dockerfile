@@ -2,10 +2,11 @@
 
 FROM node:22-alpine AS web
 WORKDIR /src/web
-COPY web/package.json web/package-lock.json ./
-RUN npm ci
+RUN npm install -g pnpm@12.16.1
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY web/ ./
-RUN npm run build
+RUN pnpm run build
 
 FROM golang:1.27-alpine AS build
 WORKDIR /src

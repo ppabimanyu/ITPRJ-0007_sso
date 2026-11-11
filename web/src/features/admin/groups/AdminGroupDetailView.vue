@@ -180,7 +180,6 @@ async function removeGroup() {
 
       <Alert
         v-if="saved"
-        variant="success"
       >
         <AlertDescription>{{ t('admin.groups.detail.saved') }}</AlertDescription>
       </Alert>
