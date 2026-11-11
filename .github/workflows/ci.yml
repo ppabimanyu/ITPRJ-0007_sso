@@ -67,7 +67,16 @@ jobs:
 
       - name: Install Playwright browser
         working-directory: web
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "playwright install failed (attempt $attempt), retrying in 30s" >&2
+            sleep 30
+          done
+          echo "playwright install failed after 3 attempts" >&2
+          exit 1
 
       - name: Run Playwright smoke
         working-directory: web
